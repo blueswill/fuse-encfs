@@ -1,12 +1,13 @@
-#define FUSE_USE_VERSION 31
 #include<fuse3/fuse.h>
 #include<locale.h>
-#include<stdlib.h>
+#include<openssl/err.h>
 #include"encfs.h"
 #include"context.h"
 
 int main(int argc, char **argv) {
     setlocale(LC_ALL, "");
+    ERR_load_crypto_strings();
+    OpenSSL_add_all_algorithms();
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     struct encfs_context *context = encfs_context_init(&args);
     int ret;
@@ -23,5 +24,8 @@ int main(int argc, char **argv) {
     };
     ret = fuse_main(args.argc, args.argv, &oprs, context);
     fuse_opt_free_args(&args);
+    EVP_cleanup();
+    CRYPTO_cleanup_all_ex_data();
+    ERR_free_strings();
     return ret;
 }
