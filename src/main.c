@@ -11,8 +11,6 @@ int main(int argc, char **argv) {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     struct encfs_context *context = encfs_context_init(&args);
     int ret;
-    if (!context)
-        return EXIT_FAILURE;
     struct fuse_operations oprs = {
         .init = encfs_init,
         .getattr = encfs_getattr,

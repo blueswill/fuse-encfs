@@ -15,6 +15,7 @@ struct encfs_context {
     int ivsize;
     int keysize;
     off_t block_size;
+    off_t start_offset;
 };
 
 struct encfs_context *encfs_context_init(struct fuse_args *fuse_args);

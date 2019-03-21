@@ -26,6 +26,7 @@ int encfs_getattr(const char *path, struct stat *st, struct fuse_file_info *info
         if(fstat(context->blkfd, &blkst) < 0)
             return -errno;
         memmove(st, &blkst, sizeof(*st));
+        st->st_size -= context->start_offset;
     }
     else
         return -ENOENT;
@@ -220,6 +221,7 @@ int encfs_read(const char *path, char *buf, size_t size, off_t offset,
     if (strcmp(path, "/target"))
         return -ENOENT;
     pthread_mutex_lock(&context->mutex);
+    offset += context->start_offset;
     if (offset >= context->block_size)
         goto free_lock;
     if (offset + (off_t)size > context->block_size)
@@ -240,6 +242,7 @@ int encfs_write(const char *path, const char *buf, size_t size, off_t offset,
     if (strcmp(path, "/target"))
         return -ENOENT;
     pthread_mutex_lock(&context->mutex);
+    offset += context->start_offset;
     if (offset + (off_t)size > context->block_size) {
         ret = -ENOSPC;
         goto free_lock;
