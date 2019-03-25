@@ -4,9 +4,7 @@
 #include<string.h>
 #include<stdlib.h>
 #include"sm3.h"
-
-#define NEW(type, n) ((type *)malloc(sizeof(type) * (n)))
-#define ceil_offset(x) (~(x - 1) & ((1 << 9) - 1))
+#include"encfs_helper.h"
 
 static inline uint32_t rotate_left(uint32_t i, int n) {
     return (i << n) | (i >> (32 - n));
@@ -46,7 +44,7 @@ static uint32_t iv[] = {
 
 uint32_t *extend(const char *str, size_t str_len, size_t *size) {
     uint64_t l = str_len << 3;
-    size_t k = ceil_offset(l + 65);
+    size_t k = CEIL_OFFSET2(l + 65, 9);
     *size = (l + k + 65) >> 5;
     uint32_t *buf = NEW(uint32_t, *size);
     unsigned char *bc = (unsigned char *)buf;

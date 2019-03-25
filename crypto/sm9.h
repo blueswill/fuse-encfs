@@ -1,7 +1,7 @@
 #ifndef SM9_H
 #define SM9_H
 
-#include<stdint.h>
+#include<stddef.h>
 
 enum sm9_error {
     SM9_OK = 0x1,
@@ -24,6 +24,8 @@ enum sm9_error {
 };
 
 struct master_key_pair;
+struct private_key;
+struct cipher;
 
 enum GEN_TYPE {
     TYPE_ENCRYPT
@@ -31,6 +33,7 @@ enum GEN_TYPE {
 
 const char *sm9_error_string(enum sm9_error e);
 int sm9_init(void);
+int sm9_is_init(void);
 void sm9_release(void);
 
 struct master_key_pair *generate_master_key_pair(enum GEN_TYPE type);
@@ -38,4 +41,12 @@ struct master_key_pair *generate_master_key_pair(enum GEN_TYPE type);
 struct private_key *get_private_key(struct master_key_pair *master,
         const char *id, size_t idlen, enum GEN_TYPE type);
 
+struct cipher *get_ciphertext(
+        struct master_key_pair *master,
+        const char *id, size_t idlen,
+        const char *data, size_t datalen,
+        int isblockcipher);
+
+void master_key_pair_free(struct master_key_pair *);
+void private_key_free(struct private_key *);
 #endif

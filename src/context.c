@@ -10,6 +10,7 @@
 #include<openssl/err.h>
 #include"context.h"
 #include"config.h"
+#include"encfs_helper.h"
 
 struct user_args {
     const char *block_device;
@@ -27,7 +28,6 @@ struct block_header {
 #define OPTION(t, p) \
     { t, offsetof(struct user_args, p), 1 }
 #define STR_EMPTY(str) (!(str) || *(str) == '\0')
-#define NEW(type, n) ((type *)calloc(n, sizeof(type)))
 
 static int decrypt(EVP_PKEY *pkey, const uint8_t *ciphertext, uint8_t **plain, size_t *out_len) {
     static uint8_t buf[256];
@@ -197,7 +197,7 @@ struct encfs_context *encfs_context_init(struct fuse_args *fuse_args) {
         FUSE_OPT_END
     };
     struct user_args args = {};
-    struct encfs_context *context = NEW(struct encfs_context, 1);
+    struct encfs_context *context = NEWZ1(struct encfs_context);
     if (!context)
         return NULL;
     if (fuse_opt_parse(fuse_args, &args, option_spec, NULL) == -1 ||

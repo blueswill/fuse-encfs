@@ -4,8 +4,7 @@
 #include"config.h"
 #include"encfs.h"
 #include"context.h"
-
-#define NEW(type, n) ((type *)calloc(n, sizeof(type)))
+#include"encfs_helper.h"
 
 void *encfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     (void)conn;
