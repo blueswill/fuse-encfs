@@ -12,3 +12,16 @@ execute_process(
 file(GLOB MIRACL_SRCS ${MIRACL_DIRECTORY}/source/mr*.c)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
 add_library(miracl STATIC ${MIRACL_SRCS})
+
+add_library(smcrypt STATIC
+    kgc.c
+    parameter.c
+    sm3.c
+    sm4.c
+    sm4_xts.c 
+    sm9.c
+    sm9_helper.c
+    zzn12.c
+    )
+
+target_link_libraries(smcrypt miracl)

@@ -1,5 +1,6 @@
 #include<sys/random.h>
 #include"parameter.h"
+#include"sm9_helper.h"
 
 #define BIG_LEN 2000
 #define BNLEN 32

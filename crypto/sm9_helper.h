@@ -28,7 +28,7 @@ enum HID {
 };
 
 struct cipher {
-    big c1, c2, c3;
+    struct _string text;
 };
 
 int H1(const struct _string *id, uint8_t hid, big *b);
@@ -43,6 +43,12 @@ void report_error(enum sm9_error err);
     .buf = (void *)(b),\
     .size = (s)\
 }
+
+#define NEW_STRING(sptr,l) ({\
+        struct _string *ptr = (sptr);\
+        ptr->size = (l);\
+        ptr->buf = NEW(uint8_t, ptr->size);\
+        })
 
 #define init_big(x) ((x) = mirvar(0))
 #define release_big(x) mirkill(x)
