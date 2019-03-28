@@ -59,6 +59,7 @@ int sm4_xts(const uint8_t *key, const uint8_t *data, size_t datalen,
             goto end;
         ptr += (SM4_BLOCK_BYTE_SIZE >> 2);
         o += (SM4_BLOCK_BYTE_SIZE >> 2);
+        GF_mult(ivcipher, 1);
     }
     memmove(out, outbuf, datalen);
     ret = 0;
