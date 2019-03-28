@@ -204,6 +204,7 @@ struct zzn12 zzn12_mul(struct zzn12 *a, struct zzn12 *b) {
 
 struct zzn12 zzn12_conj(struct zzn12 *s) {
     struct zzn12 ret;
+    zzn12_init(&ret);
     zzn4_conj(&s->a, &ret.a);
     zzn4_conj(&s->b, &ret.b);
     zzn4_negate(&ret.b, &ret.b);
@@ -218,6 +219,7 @@ struct zzn12 zzn12_inverse(struct zzn12 *s) {
     struct zzn12 ret;
     init_zzn4(tmp1);
     init_zzn4(tmp2);
+    zzn12_init(&ret);
 
     if (s->unitary) {
         ret = zzn12_conj(s);
@@ -391,6 +393,7 @@ struct zzn12 zzn12_line(ecn2 A, ecn2 *C, ecn2 *B, zzn2 slope, zzn2 extra,
     init_zzn2(U);
     init_zzn2(QY);
     init_zzn2(CZ);
+    zzn12_init(&ret);
 
     ecn2_getz(C, &CZ);
     // Thanks to A. Menezes for pointing out this optimization...
@@ -452,6 +455,7 @@ struct zzn12 zzn12_line(ecn2 A, ecn2 *C, ecn2 *B, zzn2 slope, zzn2 extra,
     release_zzn2(U);
     release_zzn2(QY);
     release_zzn2(CZ);
+    zzn12_release(&ret);
     return ret;
 }
 
@@ -494,6 +498,15 @@ int zzn12_fast_pairing(struct zzn12 *ret, ecn2 P, big Qx, big Qy, big x, zzn2 X)
     init_big(negify_x);
     init_ecn2(A);
     init_ecn2(KA);
+    zzn12_init(&t0);
+    zzn12_init(&x0);
+    zzn12_init(&x1);
+    zzn12_init(&x2);
+    zzn12_init(&x3);
+    zzn12_init(&x4);
+    zzn12_init(&x5);
+    zzn12_init(&res);
+    zzn12_init(&tmp);
 
     premult(x, 6, n);
     incr(n, 2, n);//n=(6*x+2);
@@ -597,6 +610,15 @@ END:
     release_big(negify_x);
     release_ecn2(A);
     release_ecn2(KA);
+    zzn12_release(&t0);
+    zzn12_release(&x0);
+    zzn12_release(&x1);
+    zzn12_release(&x2);
+    zzn12_release(&x3);
+    zzn12_release(&x4);
+    zzn12_release(&x5);
+    zzn12_release(&res);
+    zzn12_release(&tmp);
     return result;
 }
 

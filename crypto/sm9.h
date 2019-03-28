@@ -41,11 +41,18 @@ struct master_key_pair *generate_master_key_pair(enum GEN_TYPE type);
 struct private_key *get_private_key(struct master_key_pair *master,
         const char *id, size_t idlen, enum GEN_TYPE type);
 
-struct cipher *get_ciphertext(
-        struct master_key_pair *master,
+struct cipher *sm9_encrypt(
+        struct master_key_pair *pair,
         const char *id, size_t idlen,
         const char *data, size_t datalen,
-        int isblockcipher);
+        int isblockcipher, int maclen);
+
+int sm9_decrypt(
+        struct private_key *priv,
+        const struct cipher *cipher,
+        const char *id, size_t idlen,
+        int isblockcipher, int maclen,
+        char **out, size_t *outlen);
 
 void master_key_pair_free(struct master_key_pair *);
 void private_key_free(struct private_key *);

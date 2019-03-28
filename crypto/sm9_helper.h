@@ -28,7 +28,7 @@ enum HID {
 };
 
 struct cipher {
-    struct _string text;
+    struct _string c1, c2, c3;
 };
 
 int H1(const struct _string *id, uint8_t hid, big *b);
@@ -75,6 +75,7 @@ int write_big(big r, struct _string *s);
 #define write_big_buf(r, buf, size) \
     big_to_bytes((size), (r), (void *)(buf), 0)
 size_t epoint_size(epoint *e, big *x, big *y);
+int read_epoint(epoint *e, const uint8_t *b, size_t blen);
 int write_epoint(epoint *e, struct _string *s);
-int write_epoint_buf(epoint *e, uint8_t *buf, size_t size);
+size_t write_epoint_buf(epoint *e, uint8_t *buf, size_t size);
 #endif

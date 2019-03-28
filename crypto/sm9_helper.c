@@ -41,6 +41,8 @@ static int H(struct _string *z, big *b) {
     incr(habig, 1, h);
     free(ha.buf);
     *b = h;
+    release_big(n1);
+    release_big(habig);
     return 0;
 }
 
@@ -98,12 +100,12 @@ int write_epoint(epoint *e, struct _string *s) {
     return 0;
 }
 
-int write_epoint_buf(epoint *e, uint8_t *buf, size_t size) {
+size_t write_epoint_buf(epoint *e, uint8_t *buf, size_t size) {
     big x, y;
     size_t s;
     epoint_size(e, &x, &y);
     s = write_big_buf(x, buf, size);
-    s = write_big_buf(y, buf + s, size - s);
+    s += write_big_buf(y, buf + s, size - s);
     release_big(x);
     release_big(y);
     return s;
@@ -116,11 +118,23 @@ size_t epoint_size(epoint *e, big *xr, big *yr) {
     init_big(y);
     epoint_get(e, x, y);
     ret = big_size(x) + big_size(y);
-    release_big(x);
-    release_big(y);
     if (xr) *xr = x;
     else release_big(x);
     if (yr) *yr = y;
     else release_big(y);
     return ret;
+}
+
+int read_epoint(epoint *e, const uint8_t *b, size_t blen) {
+    big x, y;
+    if (blen < 2 * BNLEN)
+        return -1;
+    init_big(x);
+    init_big(y);
+    read_big(x, b, BNLEN);
+    read_big(y, b + BNLEN, BNLEN);
+    epoint_set(x, y, 0, e);
+    release_big(x);
+    release_big(y);
+    return 0;
 }

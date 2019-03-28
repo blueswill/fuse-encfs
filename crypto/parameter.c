@@ -3,7 +3,7 @@
 #include"sm9_helper.h"
 
 #define BIG_LEN 2000
-#define BNLEN 32
+
 static unsigned char sm9_q[] = {
     0xB6, 0x40, 0x00, 0x00, 0x02, 0xA3, 0xA6, 0xF1, 0xD6, 0x03, 0xAB, 0x4F, 0xF5, 0x8E, 0xC7, 0x45,
     0x21, 0xF2, 0x93, 0x4B, 0x1A, 0x7A, 0xEE, 0xDB, 0xE5, 0x6F, 0x9B, 0x27, 0xE3, 0x51, 0x45, 0x7D
@@ -52,6 +52,63 @@ static unsigned char sm9_b[] = {
 
 struct sm9_parameter sm9_parameter;
 
+void zzn2_pow(zzn2 *x, big k, zzn2 *r) {
+    int i, j, nb, n, nbw, nzs;
+    big zero;
+    zzn2 u2, t[16];
+
+    init_big(zero);
+    init_zzn2(u2);	
+    for( i = 0; i < 16; i++ ) {
+        init_zzn2(t[i]);
+    }
+
+    if( zzn2_iszero(x) ) {
+        zzn2_zero(r);
+        goto END;
+    }
+    if( size(k) == 0 )
+    {
+        zzn2_from_int(1, r);
+        goto END;
+    }
+    if( size(k) == 1 ) {
+        zzn2_copy(x, r);
+        goto END;
+    }
+
+    // Prepare table for windowing
+    zzn2_mul(x, x, &u2);
+    zzn2_copy(x, &t[0]);
+    for( i = 1; i < 16; i++ )
+    {
+        zzn2_mul(&t[i - 1], &u2, &t[i]);
+    }
+    // Left to right method - with windows
+    zzn2_copy(x, r);
+    nb = logb2(k);
+    if( nb > 1 ) for( i = nb - 2; i >= 0;)
+    {
+        //Note new parameter of window_size=5. Default to 5, but reduce to 4 (or even 3) to save RAM
+        n = mr_window(k, i, &nbw, &nzs, 5);
+        for( j = 0; j < nbw; j++ ) zzn2_mul(r, r, r);
+        if( n > 0 ) zzn2_mul(r, &t[n / 2], r);
+        i -= nbw;
+        if( nzs )
+        {
+            for( j = 0; j < nzs; j++ ) zzn2_mul(r, r, r);
+            i -= nzs;
+        }
+    }
+
+END:
+    release_big(zero);
+    release_zzn2(u2);
+    for( i = 0; i < 16; i++ ) {
+        release_zzn2(t[i]);
+    }
+}
+
 static void set_frobenius_norm_constant() {
     big p, zero, one, two;
     zzn2 tmp_norm_X;
@@ -80,7 +137,7 @@ static void set_frobenius_norm_constant() {
     }
     decr(p, 1, p);
     subdiv(p, 6, p);
-    zzn2_powl(&tmp_norm_X, p, &sm9_parameter.norm_x);
+    zzn2_pow(&tmp_norm_X, p, &sm9_parameter.norm_x);
 
     release_big(p);
     release_big(zero);
@@ -193,7 +250,7 @@ end:
     return result;
 }
 
-static int is_point_on_g1(epoint *p) {
+int is_point_on_g1(epoint *p) {
     int result = 0;
     big x = NULL;
     big y = NULL;

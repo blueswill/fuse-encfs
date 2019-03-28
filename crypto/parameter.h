@@ -4,6 +4,8 @@
 #include"miracl.h"
 #include"sm9.h"
 
+#define BNLEN 32
+
 struct sm9_parameter {
     enum sm9_error err;
     big param_a, param_b, param_q, param_t, param_N;
@@ -17,5 +19,7 @@ extern struct sm9_parameter sm9_parameter;
 
 int sm9_parameter_init(void);
 int sm9_parameter_release(void);
+
+int is_point_on_g1(epoint *e);
 
 #endif
