@@ -3,19 +3,14 @@
 
 #include<pthread.h>
 #include<fuse3/fuse.h>
-#include<openssl/evp.h>
 
 struct encfs_context {
-    EVP_CIPHER_CTX *ctx;
-    const EVP_CIPHER *cipher;
     unsigned char *key;
-    unsigned char *iv;
-    pthread_mutex_t mutex;
+    size_t keysize;
     int blkfd;
-    int ivsize;
-    int keysize;
-    off_t block_size;
+    size_t block_size;
     off_t start_offset;
+    pthread_mutex_t mutex;
 };
 
 struct encfs_context *encfs_context_init(struct fuse_args *fuse_args);

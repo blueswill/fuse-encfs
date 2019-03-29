@@ -40,6 +40,10 @@ struct master_key_pair *generate_master_key_pair(enum GEN_TYPE type);
 
 struct private_key *get_private_key(struct master_key_pair *master,
         const char *id, size_t idlen, enum GEN_TYPE type);
+struct private_key *private_key_read(const char *b, size_t blen);
+size_t private_key_size(const struct private_key *);
+size_t private_key_write(const struct private_key *, char *b, size_t blen);
+void private_key_free(struct private_key *);
 
 struct cipher *sm9_encrypt(
         struct master_key_pair *pair,
@@ -55,5 +59,9 @@ int sm9_decrypt(
         char **out, size_t *outlen);
 
 void master_key_pair_free(struct master_key_pair *);
-void private_key_free(struct private_key *);
+
+struct cipher *ciphertext_read(const char *in, size_t inlen);
+size_t ciphertext_size(const struct cipher *);
+size_t ciphertext_write(const struct cipher *, char *out, size_t outlen);
+void ciphertext_free(struct cipher *);
 #endif

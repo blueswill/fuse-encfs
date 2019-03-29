@@ -5,9 +5,12 @@
 #include"encfs.h"
 #include"context.h"
 #include"encfs_helper.h"
+#include"sm9.h"
+#include"sm4.h"
 
 void *encfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     (void)conn;
+    sm9_init();
     cfg->kernel_cache = 1;
     return fuse_get_context()->private_data;
 }
@@ -53,160 +56,100 @@ int encfs_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int generate_iv(unsigned char *iv, off_t sector) {
+static int read_sector(char *buf, off_t offset, size_t size) {
     struct encfs_context *context = fuse_get_context()->private_data;
-    unsigned char *ivp = NEW(unsigned char, context->ivsize);
-    int len = 0, ret = -EINVAL;
-    if (!ivp)
-        return -errno;
-    memmove(ivp, &sector, sizeof(sector));
-    if (EVP_EncryptInit_ex(context->ctx, EVP_aes_256_cbc(), NULL,
-                context->key, context->iv) != 1)
-        goto free_buf;
-    EVP_CIPHER_CTX_set_padding(context->ctx, 0);
-    if (EVP_EncryptUpdate(context->ctx, iv, &len, ivp, context->ivsize) != 1)
-        goto free_buf;
-    if (EVP_EncryptFinal_ex(context->ctx, iv + len, &len) != 1)
-        goto free_buf;
+    off_t start = FLOOR2(offset, SM4_BLOCK_BYTE_SHIFT);
+    off_t sect_off = FLOOR_OFFSET2(offset, SECTOR_SHIFT);
+    off_t end;
+    size_t s;
+    char *in = NULL, *out = NULL;
+    uint32_t tweak[SM4_XTS_IV_BYTE_SIZE >> 2];
+    int ret = -1;
+    if (sect_off + size > SIZE2(SECTOR_SHIFT))
+        size = SIZE2(SECTOR_SHIFT) - sect_off;
+    end = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
+    s = end - start;
+    in = NEW(char, s);
+    out = NEW(char, s);
+    if (!in || !out)
+        goto end;
+    ret = pread(context->blkfd, in, s, start);
+    if (ret < 0)
+        goto end;
+    if (ret != (int)s) {
+        errno = -EIO;
+        goto end;
+    }
+    tweak[0] = INDEX2(start, SECTOR_SHIFT);
+    if (sm4_xts(context->key, (void *)in, s, (void *)out,
+                (void *)tweak, INDEX2(sect_off, SM4_BLOCK_BYTE_SHIFT), 0) < 0)
+        goto end;
+    memmove(buf, in + FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT), size);
     ret = 0;
-free_buf:
-    free(ivp);
+end:
+    free(in);
+    free(out);
     return ret;
 }
 
-static int decrypt_sector(unsigned char *plaintext, const unsigned char *ciphertext,
-        off_t sector) {
+static int write_sector(const char *buf, off_t offset, size_t size) {
+    char *cipher = NEW(char, size);
     struct encfs_context *context = fuse_get_context()->private_data;
-    int len, ret;
-    unsigned char *iv = NEW(unsigned char, context->ivsize);
-    if (!iv || (ret = generate_iv(iv, sector)) < 0) {
-        ret = -errno;
-        goto free_buf;
+    uint32_t tweak[SM4_XTS_IV_BYTE_SIZE >> 2];
+    size_t off = FLOOR_OFFSET2(offset, SECTOR_SHIFT);
+    ssize_t w = -1;
+    tweak[0] = INDEX2(offset, SECTOR_SHIFT);
+    if (!cipher)
+        return -1;
+    if (sm4_xts(context->key, (void *)buf, size, (void *)cipher,
+                (void *)tweak, INDEX2(off, SM4_BLOCK_BYTE_SHIFT), 1) < 0)
+        goto end;
+    w = pwrite(context->blkfd, cipher, size, offset);
+    if (w < 0)
+        goto end;
+    if (w != (ssize_t)size) {
+        errno = -EIO;
+        goto end;
     }
-    ret = -EINVAL;
-    if (EVP_DecryptInit_ex(context->ctx, context->cipher, NULL, context->key, iv) != 1)
-        goto free_buf;
-    if (EVP_DecryptUpdate(context->ctx, plaintext, &len,
-                ciphertext, SECTOR_SIZE) != 1)
-        goto free_buf;
-    if (EVP_DecryptFinal_ex(context->ctx, plaintext + len, &len) != 1)
-        goto free_buf;
-    ret = 0;
-free_buf:
-    free(iv);
-    return ret;
+end:
+    free(cipher);
+    if (w != (ssize_t)size)
+        return -1;
+    return 0;
 }
 
-static int encrypt_sector(unsigned char *ciphertext, const unsigned char *plaintext,
-        off_t sector) {
-    int len, ret;
-    struct encfs_context *context = fuse_get_context()->private_data;
-    unsigned char *iv = NEW(unsigned char, context->ivsize);
-    if (!iv || (ret = generate_iv(iv, sector)) < 0) {
-        ret = -errno;
-        goto free_buf;
-    }
-    ret = -EINVAL;
-    if (EVP_EncryptInit_ex(context->ctx, EVP_aes_256_xts(), NULL, context->key, iv) != 1)
-        goto free_buf;
-    if (EVP_EncryptUpdate(context->ctx, ciphertext, &len, plaintext, SECTOR_SIZE) != 1)
-        goto free_buf;
-    if (EVP_EncryptFinal_ex(context->ctx, ciphertext + len, &len) != 1)
-        goto free_buf;
-    ret = 0;
-free_buf:
-    free(iv);
-    return ret;
-}
-
-static ssize_t read_sector(unsigned char *buf, off_t offset, size_t size) {
-    off_t sector = SECTOR_DOWN(offset);
-    off_t sector_offset = SECTOR_OFFSET(offset);
-    unsigned char *ciphertext;
-    unsigned char *plaintext;
-    struct encfs_context *context = fuse_get_context()->private_data;
-    int ret;
-    if (size + sector_offset > SECTOR_SIZE)
-        size = SECTOR_SIZE - sector_offset;
-    if (!(ciphertext = NEW(unsigned char, SECTOR_SIZE)) ||
-            !(plaintext = NEW(unsigned char, SECTOR_SIZE)))
-        return -errno;
-    ret = pread(context->blkfd, ciphertext, SECTOR_SIZE, sector);
-    if (ret < 0) {
-        ret = -errno;
-        goto free_buf;
-    }
-    if (ret != SECTOR_SIZE) {
-        ret = -EIO;
-        goto free_buf;
-    }
-    if ((ret = decrypt_sector(plaintext, ciphertext, GET_SECTOR(sector))) < 0)
-        goto free_buf;
-    memmove(buf, plaintext + sector_offset, size);
-    ret = size;
-free_buf:
-    free(ciphertext);
-    free(plaintext);
-    return ret;
-}
-
-static ssize_t write_sector(unsigned char *cipher, const unsigned char *buf,
-        off_t offset, size_t size) {
-    unsigned char *sector_data = NEW(unsigned char, SECTOR_SIZE);
-    unsigned const char *wait = buf;
-    off_t sector = SECTOR_DOWN(offset);
-    off_t sector_offset = SECTOR_OFFSET(offset);
-    int ret;
-    if (!sector_data)
-        return -errno;
-    if (size + sector_offset > SECTOR_SIZE)
-        size = SECTOR_SIZE - sector_offset;
-    if (sector_offset != 0 || size != SECTOR_SIZE) {
-        if ((ret = read_sector(sector_data, offset, size)) < 0)
-            goto free_buf;
-        memmove(sector_data + sector_offset, buf + sector_offset, size);
-        wait = sector_data;
-    }
-    if ((ret = encrypt_sector(cipher, wait, GET_SECTOR(sector))) < 0)
-        goto free_buf;
-free_buf:
-    free(sector_data);
-    return size;
-}
-
-static int __encfs_read(unsigned char *buf, size_t size, off_t offset) {
-    size_t len = 0;
+static int __encfs_read(char *buf, size_t size, off_t offset) {
+    ssize_t len = 0;
     int rd;
-    while (len < size) {
+    while (len < (ssize_t)size) {
         rd = read_sector(buf + len, offset + len, size - len);
         if (rd < 0)
-            return rd;
+            return -1;
         len += rd;
     }
-    return len;
+    return 0;
 }
 
-static int __encfs_write(const unsigned char *buf, size_t size, off_t offset) {
-    int ret;
-    size_t len = 0, i = 0;
-    size_t alloc = SECTOR_UP(offset + size) - SECTOR_DOWN(offset);
-    unsigned char *cipher = NEW(unsigned char, alloc);
-    struct encfs_context *context = fuse_get_context()->private_data;
-    if (!cipher)
-        return -errno;
-    while (len < size) {
-        ret = write_sector(cipher + i * SECTOR_SIZE, buf + len,
-                offset + len, size - len);
-        if (ret < 0)
-            goto free_buf;
-        len += ret;
-        ++i;
+static int __encfs_write(const char *buf, size_t size, off_t offset) {
+    int ret = -1;
+    off_t start = FLOOR2(offset, SM4_BLOCK_BYTE_SHIFT);
+    off_t stop = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
+    size_t s = (size_t)(stop - start);
+    char *cipher;
+    if (start == offset && s == size) {
+        if (write_sector(buf, offset, size) < 0)
+            return -1;
+        return 0;
     }
-    ret = pwrite(context->blkfd, cipher, len, SECTOR_DOWN(offset));
-    if (ret < 0)
-        ret = -errno;
-    else if ((size_t)ret != len)
-        ret = -EIO;
+    if (!(cipher = NEW(char, s)))
+        return -1;
+    if (__encfs_read(cipher, s, start) < 0)
+        goto free_buf;
+    memmove(cipher + FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT),
+            buf, size);
+    if (write_sector(cipher, start, s) < 0)
+        goto free_buf;
+    ret = 0;
 free_buf:
     free(cipher);
     return ret;
@@ -214,20 +157,24 @@ free_buf:
 
 int encfs_read(const char *path, char *buf, size_t size, off_t offset,
         struct fuse_file_info *fi) {
-    int ret = 0;
+    int ret;
     struct encfs_context *context = fuse_get_context()->private_data;
     (void)fi;
     if (strcmp(path, "/target"))
         return -ENOENT;
-    pthread_mutex_lock(&context->mutex);
+    if (offset < 0)
+        return -EINVAL;
     offset += context->start_offset;
-    if (offset >= context->block_size)
-        goto free_lock;
-    if (offset + (off_t)size > context->block_size)
+    if ((size_t)offset >= context->block_size)
+        return -EINVAL;
+    if (offset + size > context->block_size)
         size = context->block_size - offset;
-    if ((ret = __encfs_read((unsigned char *)buf, size, offset)) < 0) {
+    pthread_mutex_lock(&context->mutex);
+    if (__encfs_read(buf, size, offset) < 0) {
+        ret = -errno;
         goto free_lock;
     }
+    ret = 0;
 free_lock:
     pthread_mutex_unlock(&context->mutex);
     return ret;
@@ -235,20 +182,22 @@ free_lock:
 
 int encfs_write(const char *path, const char *buf, size_t size, off_t offset,
         struct fuse_file_info *fi) {
-    int ret = -EIO;
+    int ret = 0;
     struct encfs_context *context = fuse_get_context()->private_data;
     (void)fi;
     if (strcmp(path, "/target"))
         return -ENOENT;
-    pthread_mutex_lock(&context->mutex);
+    if (offset < 0)
+        return -EINVAL;
     offset += context->start_offset;
-    if (offset + (off_t)size > context->block_size) {
-        ret = -ENOSPC;
+    if (offset + size > context->block_size)
+        return -ENOSPC;
+    pthread_mutex_lock(&context->mutex);
+    if (__encfs_write(buf, size, offset) < 0) {
+        ret = -errno;
         goto free_lock;
     }
-    if ((ret = __encfs_write((unsigned char *)buf, size, offset)) < 0) {
-        goto free_lock;
-    }
+    ret = 0;
 free_lock:
     pthread_mutex_unlock(&context->mutex);
     return ret;
@@ -256,6 +205,5 @@ free_lock:
 
 void encfs_destroy(void *private_data) {
     encfs_context_free(private_data);
+    sm9_release();
 }
-
-

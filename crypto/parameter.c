@@ -146,35 +146,6 @@ static void set_frobenius_norm_constant() {
     release_zzn2(tmp_norm_X);
 }
 
-int read_ecn2_byte128(ecn2 *v, const unsigned char *buf) {
-    ecn2 r;
-    zzn2 x, y;
-    big a=NULL, b=NULL;
-
-    init_ecn2(r);
-    init_zzn2(x);
-    init_zzn2(y);
-    init_big(a);
-    init_big(b);
-
-    read_big(b, buf, BNLEN);
-    read_big(a, buf + BNLEN, BNLEN);
-    zzn2_from_bigs(a, b, &x);
-    read_big(b, buf + BNLEN * 2, BNLEN);
-    read_big(a, buf + BNLEN * 3, BNLEN);
-    zzn2_from_bigs(a, b, &y);
-    int ret = ecn2_set(&x, &y, &r);
-    if(ret)
-        ecn2_copy(&r, v);
-
-    release_ecn2(r);
-    release_zzn2(x);
-    release_zzn2(y);
-    release_big(a);
-    release_big(b);
-    return ret;
-}
-
 int sm9_parameter_release(void) {
     release_big(sm9_parameter.param_N);
     release_big(sm9_parameter.param_a);

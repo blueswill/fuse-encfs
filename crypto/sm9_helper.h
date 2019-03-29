@@ -54,6 +54,8 @@ void report_error(enum sm9_error err);
 #define release_big(x) mirkill(x)
 #define init_zzn2(x) (init_big((x).a), init_big((x).b))
 #define release_zzn2(x) (release_big((x).a), release_big((x).b))
+#define zzn2_size(x) \
+    (big_size((x)->b) + big_size((x)->a))
 #define init_epoint(e) ((e) = epoint_init())
 #define release_epoint(e) epoint_free(e)
 #define init_ecn2(e) do {\
@@ -67,6 +69,8 @@ void report_error(enum sm9_error err);
     release_zzn2((e).y);\
     release_zzn2((e).z);\
 } while (0)
+#define ecn2_size(e) \
+    (zzn2_size(&(e)->x) + zzn2_size(&(e)->y))
 
 #define read_big(r, b, blen) bytes_to_big(blen, (const char *)(b), r);
 #define big_size(b) ((b)->len * sizeof((b)->w))
@@ -78,4 +82,5 @@ size_t epoint_size(epoint *e, big *x, big *y);
 int read_epoint(epoint *e, const uint8_t *b, size_t blen);
 int write_epoint(epoint *e, struct _string *s);
 size_t write_epoint_buf(epoint *e, uint8_t *buf, size_t size);
+int read_ecn2_byte128(ecn2 *v, const unsigned char *buf);
 #endif

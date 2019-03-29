@@ -28,4 +28,4 @@ add_library(smcrypt STATIC
     sm9_helper.c
     )
 
-target_link_libraries(smcrypt miracl)
+target_link_libraries(smcrypt miracl zzn12)
