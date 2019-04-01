@@ -27,8 +27,9 @@ int encfs_getattr(const char *path, struct stat *st, struct fuse_file_info *info
         struct stat blkst;
         if(fstat(context->blkfd, &blkst) < 0)
             return -errno;
-        memmove(st, &blkst, sizeof(*st));
-        st->st_size -= context->start_offset;
+        st->st_size = context->block_size - context->start_offset;
+        st->st_mode = S_IFREG | 0660;
+        st->st_nlink = 1;
     }
     else
         return -ENOENT;
@@ -56,14 +57,14 @@ int encfs_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int read_sector(char *buf, off_t offset, size_t size) {
+static int read_sector(char *buf, size_t size, off_t offset) {
     struct encfs_context *context = fuse_get_context()->private_data;
     off_t start = FLOOR2(offset, SM4_BLOCK_BYTE_SHIFT);
     off_t sect_off = FLOOR_OFFSET2(offset, SECTOR_SHIFT);
     off_t end;
     size_t s;
     char *in = NULL, *out = NULL;
-    uint32_t tweak[SM4_XTS_IV_BYTE_SIZE >> 2];
+    uint32_t tweak[SM4_XTS_IV_BYTE_SIZE >> 2] = {};
     int ret = -1;
     if (sect_off + size > SIZE2(SECTOR_SHIFT))
         size = SIZE2(SECTOR_SHIFT) - sect_off;
@@ -84,37 +85,35 @@ static int read_sector(char *buf, off_t offset, size_t size) {
     if (sm4_xts(context->key, (void *)in, s, (void *)out,
                 (void *)tweak, INDEX2(sect_off, SM4_BLOCK_BYTE_SHIFT), 0) < 0)
         goto end;
-    memmove(buf, in + FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT), size);
-    ret = 0;
+    memmove(buf, out + FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT), size);
+    ret = size;
 end:
     free(in);
     free(out);
     return ret;
 }
 
-static int write_sector(const char *buf, off_t offset, size_t size) {
-    char *cipher = NEW(char, size);
+static int write_sector(const char *buf, size_t size, off_t offset) {
     struct encfs_context *context = fuse_get_context()->private_data;
-    uint32_t tweak[SM4_XTS_IV_BYTE_SIZE >> 2];
-    size_t off = FLOOR_OFFSET2(offset, SECTOR_SHIFT);
-    ssize_t w = -1;
-    tweak[0] = INDEX2(offset, SECTOR_SHIFT);
-    if (!cipher)
-        return -1;
-    if (sm4_xts(context->key, (void *)buf, size, (void *)cipher,
-                (void *)tweak, INDEX2(off, SM4_BLOCK_BYTE_SHIFT), 1) < 0)
-        goto end;
-    w = pwrite(context->blkfd, cipher, size, offset);
-    if (w < 0)
-        goto end;
-    if (w != (ssize_t)size) {
-        errno = -EIO;
-        goto end;
+    char cipher[SIZE2(SECTOR_SHIFT)];
+    uint32_t tweak[SM4_XTS_KEY_BYTE_SIZE >> 2] = {};
+    off_t off = offset, stop = offset + size;
+    const char *from = buf;
+    while (off < stop) {
+        tweak[0] = INDEX2(off, SECTOR_SHIFT);
+        if (sm4_xts(context->key, (void *)from, SIZE2(SECTOR_SHIFT),
+                    (void *)cipher, (void *)tweak, 0, 1) < 0)
+            return -1;
+        ssize_t w = pwrite(context->blkfd, cipher, SIZE2(SECTOR_SHIFT), off);
+        if (w < 0)
+            return -1;
+        if (w != SIZE2(SECTOR_SHIFT)) {
+            errno = -EIO;
+            return -1;
+        }
+        off += SIZE2(SECTOR_SHIFT);
+        from += SIZE2(SECTOR_SHIFT);
     }
-end:
-    free(cipher);
-    if (w != (ssize_t)size)
-        return -1;
     return 0;
 }
 
@@ -122,7 +121,7 @@ static int __encfs_read(char *buf, size_t size, off_t offset) {
     ssize_t len = 0;
     int rd;
     while (len < (ssize_t)size) {
-        rd = read_sector(buf + len, offset + len, size - len);
+        rd = read_sector(buf + len, size - len, offset + len);
         if (rd < 0)
             return -1;
         len += rd;
@@ -134,23 +133,37 @@ static int __encfs_write(const char *buf, size_t size, off_t offset) {
     int ret = -1;
     off_t start = FLOOR2(offset, SM4_BLOCK_BYTE_SHIFT);
     off_t stop = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
-    size_t s = (size_t)(stop - start);
-    char *cipher;
-    if (start == offset && s == size) {
-        if (write_sector(buf, offset, size) < 0)
-            return -1;
-        return 0;
-    }
-    if (!(cipher = NEW(char, s)))
+    off_t sect_off = FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT);
+    size_t left = size;
+    char *cipher = NEW(char, stop - start);
+    const char *from = buf;
+    char *to = cipher;
+    if (!cipher)
         return -1;
-    if (__encfs_read(cipher, s, start) < 0)
-        goto free_buf;
-    memmove(cipher + FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT),
-            buf, size);
-    if (write_sector(cipher, start, s) < 0)
-        goto free_buf;
+    while (start < stop) {
+        size_t s = left;
+        if (sect_off + s > SIZE2(SECTOR_SHIFT))
+            s = SIZE2(SECTOR_SHIFT) - sect_off;
+        if (s == SIZE2(SECTOR_SHIFT))
+            memmove(to, from, s);
+        else {
+            if (__encfs_read(to, SIZE2(SECTOR_SHIFT), start) < 0)
+                goto end;
+            memmove(to + sect_off, from, s);
+        }
+        to += SIZE2(SECTOR_SHIFT);
+        from += s;
+        sect_off = 0;
+        start += SIZE2(SECTOR_SHIFT);
+        left -= s;
+    }
     ret = 0;
-free_buf:
+end:
+    if (!ret) {
+        start = FLOOR2(offset, SM4_BLOCK_BYTE_SHIFT);
+        off_t stop = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
+        ret = write_sector(cipher, stop - start, start);
+    }
     free(cipher);
     return ret;
 }
@@ -174,7 +187,7 @@ int encfs_read(const char *path, char *buf, size_t size, off_t offset,
         ret = -errno;
         goto free_lock;
     }
-    ret = 0;
+    ret = size;
 free_lock:
     pthread_mutex_unlock(&context->mutex);
     return ret;
@@ -197,7 +210,7 @@ int encfs_write(const char *path, const char *buf, size_t size, off_t offset,
         ret = -errno;
         goto free_lock;
     }
-    ret = 0;
+    ret = size;
 free_lock:
     pthread_mutex_unlock(&context->mutex);
     return ret;

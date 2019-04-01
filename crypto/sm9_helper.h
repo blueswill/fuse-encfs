@@ -83,4 +83,5 @@ int read_epoint(epoint *e, const uint8_t *b, size_t blen);
 int write_epoint(epoint *e, struct _string *s);
 size_t write_epoint_buf(epoint *e, uint8_t *buf, size_t size);
 int read_ecn2_byte128(ecn2 *v, const unsigned char *buf);
+size_t write_ecn2(ecn2 *v, char *buf, size_t blen);
 #endif

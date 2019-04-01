@@ -180,16 +180,16 @@ static int kdf(const struct _string *c1, struct zzn12 *w, struct _string *id, si
 
 static int handle_block(const struct _string *kdf, const struct _string *data,
         struct _string *k2str, struct _string *c2str,
-        size_t k1size, size_t k2size) {
+        size_t k1size, size_t k2size, int encrypt) {
     struct _string k1 = get_string(kdf->buf, k1size);
     struct _string k2 = get_string(kdf->buf + k1size, k2size);
     if (is_zero(&k1))
         return 1;
-    sm4_cbc(k1.buf, NULL, data->size, NULL, &c2str->size, 1);
+    sm4_cbc(k1.buf, NULL, data->size, NULL, &c2str->size, encrypt);
     if (!NEW_STRING(c2str, c2str->size))
         return -1;
     if (sm4_cbc(k1.buf, (void *)data->buf, data->size,
-                c2str->buf, &c2str->size, 1) < 0) {
+                c2str->buf, &c2str->size, encrypt) < 0) {
         free(c2str->buf);
         return -1;
     }
@@ -267,7 +267,7 @@ struct cipher *sm9_encrypt(
             if (kdf(&cipher->c1, g, &idstr, SM4_BLOCK_BIT_SIZE + maclen, &k) < 0)
                 goto end;
             if ((ret =handle_block(&k, &datastr, &k2, &cipher->c2, SM4_BLOCK_BYTE_SIZE,
-                        maclen >> 3)) < 0)
+                        maclen >> 3, 1)) < 0)
                 goto end;
             else if (!ret)
                 break;
@@ -337,7 +337,7 @@ int sm9_decrypt(
         if (kdf(&cipher->c1, w, &idstr, SM4_BLOCK_BIT_SIZE + maclen, &k) < 0)
             goto end;
         if (handle_block(&k, &cipher->c2, &k2, &m, SM4_BLOCK_BYTE_SIZE,
-                        maclen >> 3))
+                        maclen >> 3, 0))
             goto end;
     }
     else {

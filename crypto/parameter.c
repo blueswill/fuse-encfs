@@ -171,9 +171,13 @@ int sm9_parameter_init(void) {
     sm9_parameter.mip->TWIST = MR_SEXTIC_M;
 
     getrandom(&seed, sizeof(seed), 0);
+#ifdef CHECK
+    irand(0);
+#else
     irand(seed);
+#endif
 
-    init_big(P1_x); 
+    init_big(P1_x);
     init_big(P1_y);
 
     init_big(sm9_parameter.param_N);

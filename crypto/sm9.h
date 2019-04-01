@@ -37,12 +37,15 @@ int sm9_is_init(void);
 void sm9_release(void);
 
 struct master_key_pair *generate_master_key_pair(enum GEN_TYPE type);
+size_t master_key_pair_size(const struct master_key_pair *);
+struct master_key_pair *master_key_pair_read(const char *, size_t);
+size_t master_key_pair_write(const struct master_key_pair *, char *, size_t);
 
 struct private_key *get_private_key(struct master_key_pair *master,
         const char *id, size_t idlen, enum GEN_TYPE type);
 struct private_key *private_key_read(const char *b, size_t blen);
 size_t private_key_size(const struct private_key *);
-size_t private_key_write(const struct private_key *, char *b, size_t blen);
+size_t private_key_write(struct private_key *, char *b, size_t blen);
 void private_key_free(struct private_key *);
 
 struct cipher *sm9_encrypt(

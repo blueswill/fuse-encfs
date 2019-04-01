@@ -156,12 +156,14 @@ static int sm4_cbc_encrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
     /* for correct alignment */
     key32 = NEW(uint32_t, SM4_KEY_BYTE_SIZE >> 2);
     data = NEW(uint32_t, (max - SM4_BLOCK_BYTE_SIZE) >> 2);
-    outbuf = NEW(uint32_t, max >> 2);
+    outbuf = NEWZ(uint32_t, max >> 2);
     if (!key32 || !data || !outbuf)
         goto end;
     memmove(key32, key, SM4_KEY_BYTE_SIZE);
     memmove(data, in, inlen);
+#ifndef CHECK
     getrandom(outbuf, SM4_BLOCK_BYTE_SIZE, 0);
+#endif
     for (i = 0; i < padding; ++i)
         data[inlen + i] = padding;
     for (i = 0; i + SM4_BLOCK_BYTE_SIZE < max; i += SM4_BLOCK_BYTE_SIZE) {

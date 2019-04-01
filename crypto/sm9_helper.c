@@ -140,11 +140,9 @@ int read_epoint(epoint *e, const uint8_t *b, size_t blen) {
 }
 
 int read_ecn2_byte128(ecn2 *v, const unsigned char *buf) {
-    ecn2 r;
     zzn2 x, y;
     big a=NULL, b=NULL;
 
-    init_ecn2(r);
     init_zzn2(x);
     init_zzn2(y);
     init_big(a);
@@ -156,11 +154,8 @@ int read_ecn2_byte128(ecn2 *v, const unsigned char *buf) {
     read_big(b, buf + BNLEN * 2, BNLEN);
     read_big(a, buf + BNLEN * 3, BNLEN);
     zzn2_from_bigs(a, b, &y);
-    int ret = ecn2_set(&x, &y, &r);
-    if(ret)
-        ecn2_copy(&r, v);
+    int ret = ecn2_set(&x, &y, v);
 
-    release_ecn2(r);
     release_zzn2(x);
     release_zzn2(y);
     release_big(a);
@@ -168,3 +163,20 @@ int read_ecn2_byte128(ecn2 *v, const unsigned char *buf) {
     return ret;
 }
 
+static size_t big_write_ecn2(big t, char *b, size_t blen) {
+    big r;
+    init_big(r);
+    redc(t, r);
+    size_t ret = write_big_buf(r, b, blen);
+    release_big(r);
+    return ret;
+}
+
+size_t write_ecn2(ecn2 *v, char *b, size_t blen) {
+    size_t r;
+    r = big_write_ecn2(v->x.b, b, blen);
+    r += big_write_ecn2(v->x.a, b + r, blen - r);
+    r += big_write_ecn2(v->y.b, b + r, blen - r);
+    r += big_write_ecn2(v->y.a, b + r, blen - r);
+    return r;
+}

@@ -9,6 +9,7 @@
 #include<linux/fs.h>
 #include"context.h"
 #include"config.h"
+#include"encfs.h"
 #include"encfs_helper.h"
 #include"sm9.h"
 #include"sm4.h"
@@ -24,23 +25,6 @@ struct crypto {
     char *id;
     size_t idlen;
 };
-
-struct crypto_file {
-    uint8_t priv[128];
-    uint8_t idlen;
-    uint8_t id[1];
-} __attribute__((packed));
-
-struct block_header {
-    uint8_t header_flag;
-    uint8_t header_number;
-    uint8_t ciphertext[3][160];
-    uint8_t reserve[30];
-} __attribute__((packed));
-
-#define HEADER_CUR_TYPE 0x1
-#define HEADER_NXT_TYPE 0x2
-#define IS_HEADER(flag, type) ((flag) & (type))
 
 #define OPTION(t, p) \
     { t, offsetof(struct user_args, p), 1 }
@@ -84,11 +68,12 @@ static struct crypto *get_pkey(const char *pkey_file) {
         goto end;
     if (!(crypto = NEWZ1(struct crypto)))
         goto end;
-    if (!(crypto->pkey = private_key_read(fp->priv, 128)))
+    if (!(crypto->pkey = private_key_read(fp->priv, sizeof(fp->priv))))
         goto end;
-    if (!(crypto->id = NEW(uint8_t, fp->idlen)))
+    crypto->idlen = fp->idlen;
+    if (!(crypto->id = NEW(uint8_t, crypto->idlen)))
         goto end;
-    memmove(crypto->id, fp->id, fp->idlen);
+    memmove(crypto->id, fp->id, crypto->idlen);
     ret = 0;
 end:
     if (fd >= 0)
@@ -116,24 +101,24 @@ int check_header(struct block_header *header, struct user_args *args,
         for (i = 0; i < ptr->header_number; ++i) {
             uint8_t *ciphertext = ptr->ciphertext[i];
             struct cipher *cipher = ciphertext_read((void *)ciphertext, 160);
-            char *out;
+            char *out = NULL;
             size_t outlen;
             if (cipher && !sm9_decrypt(crypto->pkey, cipher,
                         crypto->id, crypto->idlen, 1, 0x100,
                         &out, &outlen) &&
                     outlen >= context->keysize) {
                 memmove(context->key, out, context->keysize);
+                context->start_offset = sizeof(struct block_header) * (ptr - header + 1);
+                free(out);
                 ret = 0;
                 goto end;
             }
-            free(out);
             ciphertext_free(cipher);
         }
         if (!IS_HEADER(ptr->header_flag, HEADER_NXT_TYPE))
             goto end;
         ++ptr;
     }
-    context->start_offset = sizeof(struct block_header) * (ptr - header);
 end:
     if (ret < 0) {
         free(context->key);
