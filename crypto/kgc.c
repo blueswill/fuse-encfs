@@ -8,17 +8,10 @@
 #include"sm4.h"
 #include"sm3.h"
 
-void report_error(enum sm9_error e) {}
+enum sm9_error _err;
 
-void master_key_pair_free(struct master_key_pair *pair) {
-    release_big(pair->priv);
-    release_epoint(pair->pub);
-    free(pair);
-}
-
-void private_key_free(struct private_key *key) {
-    release_ecn2(key->e);
-    free(key);
+void report_error(enum sm9_error err) {
+    _err = err;
 }
 
 static int is_zero(const struct _string *s) {
@@ -46,10 +39,8 @@ end:
 
 static struct master_key_pair *generate_encrypt_master_key_pair(void) {
     struct master_key_pair *pair = NEW1(struct master_key_pair);
-    if (!pair) {
-        report_error(SM9_ERROR_OTHER);
+    if (!pair)
         return NULL;
-    }
     pair->type = TYPE_ENCRYPT;
     init_big(pair->priv);
     init_epoint(pair->pub);
@@ -107,10 +98,8 @@ static struct private_key *get_encrypt_private_key(struct master_key_pair *pair,
         const struct _string *id, uint8_t hid) {
     big t2;
     struct private_key *priv = NEW1(struct private_key);
-    if (!priv) {
-        report_error(SM9_ERROR_OTHER);
+    if (!priv)
         return NULL;
-    }
     priv->type = TYPE_ENCRYPT;
     init_big(t2);
     init_ecn2(priv->e);

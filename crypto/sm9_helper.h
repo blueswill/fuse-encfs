@@ -78,7 +78,7 @@ void report_error(enum sm9_error err);
 int write_big(big r, struct _string *s);
 #define write_big_buf(r, buf, size) \
     big_to_bytes((size), (r), (void *)(buf), 0)
-size_t epoint_size(epoint *e, big *x, big *y);
+size_t epoint_size(epoint *e);
 int read_epoint(epoint *e, const uint8_t *b, size_t blen);
 int write_epoint(epoint *e, struct _string *s);
 size_t write_epoint_buf(epoint *e, uint8_t *buf, size_t size);

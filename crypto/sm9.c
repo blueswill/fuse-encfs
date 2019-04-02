@@ -29,7 +29,7 @@ int sm9_is_init(void) {
 
 struct cipher *ciphertext_read(const char *in, size_t inlen) {
     struct cipher *cipher = NULL;
-    if (inlen <= 96)
+    if (!in || inlen <= 96)
         return NULL;
     cipher = NEWZ1(struct cipher);
     if (!cipher)
@@ -55,7 +55,7 @@ size_t ciphertext_size(const struct cipher *cipher) {
 
 size_t ciphertext_write(const struct cipher *cipher,
         char *out, size_t outlen) {
-    if (ciphertext_size(cipher) > outlen)
+    if (!out || ciphertext_size(cipher) > outlen)
         return 0;
     memmove(out, cipher->c1.buf, cipher->c1.size);
     memmove(out + cipher->c1.size, cipher->c3.buf, cipher->c3.size);
@@ -73,12 +73,12 @@ void ciphertext_free(struct cipher *cipher) {
 }
 
 size_t private_key_size(const struct private_key *priv) {
-    return ecn2_size(&priv->e) + 1;
+    return priv ? ecn2_size(&priv->e) + 1 : 0;
 }
 
 struct private_key *private_key_read(const char *b, size_t blen) {
     struct private_key *priv = NULL;
-    if (blen < 128 ||
+    if (!b || blen < 129 ||
             !(priv = NEW1(struct private_key)))
         return NULL;
     init_ecn2(priv->e);
@@ -92,7 +92,7 @@ struct private_key *private_key_read(const char *b, size_t blen) {
 }
 
 size_t private_key_write(struct private_key *priv, char *b, size_t blen) {
-    if (blen < private_key_size(priv))
+    if (!priv || !b || blen < private_key_size(priv))
         return 0;
     size_t size = write_ecn2(&priv->e, b, blen);
     b[size] = priv->type;
@@ -100,20 +100,14 @@ size_t private_key_write(struct private_key *priv, char *b, size_t blen) {
 }
 
 size_t master_key_pair_size(const struct master_key_pair *pair) {
-    struct _string x, y;
-    write_big(pair->priv, &x);
-    write_epoint(pair->pub, &y);
-    size_t size = 3 + x.size + y.size;
-    free(x.buf);
-    free(y.buf);
-    return size;
+    return pair ? 3 + big_size(pair->priv) + epoint_size(pair->pub) : 0;
 }
 
 struct master_key_pair *master_key_pair_read(const char *buf, size_t len) {
     int ret = -1;
     size_t size;
     struct master_key_pair *pair = NEW1(struct master_key_pair);
-    if (len < buf[0] + 1)
+    if (!buf || !pair || len < (size_t)buf[0] + 1)
         goto end;
     init_big(pair->priv);
     init_epoint(pair->pub);
@@ -138,6 +132,8 @@ end:
 size_t master_key_pair_write(const struct master_key_pair *pair, char *buf, size_t len) {
     struct _string s, t;
     size_t size;
+    if (!pair || !buf)
+        return 0;
     write_big(pair->priv, &s);
     write_epoint(pair->pub, &t);
     if (3 + s.size + t.size > len) {
@@ -155,3 +151,15 @@ size_t master_key_pair_write(const struct master_key_pair *pair, char *buf, size
     buf[size] = pair->type;
     return size + 1;
 }
+
+void master_key_pair_free(struct master_key_pair *pair) {
+    release_big(pair->priv);
+    release_epoint(pair->pub);
+    free(pair);
+}
+
+void private_key_free(struct private_key *key) {
+    release_ecn2(key->e);
+    free(key);
+}
+

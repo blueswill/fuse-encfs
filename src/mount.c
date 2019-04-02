@@ -12,8 +12,10 @@ int main(int argc, char **argv) {
     sm9_init();
     struct encfs_context *context = encfs_context_init(&args);
     sm9_release();
-    if (!context)
+    if (!context) {
+        fprintf(stderr, "get context error\n");
         exit(EXIT_FAILURE);
+    }
     int ret;
     struct fuse_operations oprs = {
         .init = encfs_init,

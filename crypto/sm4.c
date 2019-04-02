@@ -184,15 +184,15 @@ end:
 
 static int sm4_cbc_decrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
         uint8_t *out, size_t *outlen) {
-    if (inlen & SM4_BLOCK_BYTE_MASK)
+    int ret = -1;
+    uint8_t *key32, *data, *outbuf;
+    size_t i, j, k, padding;
+    if (inlen < SM4_BLOCK_BYTE_SIZE || (inlen & SM4_BLOCK_BYTE_MASK))
         return -1;
     if (!in) {
         *outlen = inlen - SM4_BLOCK_BYTE_SIZE;
         return 0;
     }
-    int ret = -1;
-    uint8_t *key32, *data, *outbuf;
-    size_t i, j, k;
     key32 = NEW(uint32_t, SM4_KEY_BYTE_SIZE >> 2);
     data = NEW(uint32_t, inlen >> 2);
     outbuf = NEW(uint32_t, (inlen - SM4_BLOCK_BYTE_SIZE) >> 2);
@@ -208,7 +208,10 @@ static int sm4_cbc_decrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
         for (k = 0; k < SM4_BLOCK_BYTE_SIZE; ++k)
             outbuf[j + k] ^= data[j + k];
     }
-    *outlen = inlen - SM4_BLOCK_BYTE_SIZE - outbuf[inlen - SM4_BLOCK_BYTE_SIZE - 1];
+    padding = outbuf[inlen - SM4_BLOCK_BYTE_SIZE - 1];
+    if (inlen <= (size_t)SM4_BLOCK_BYTE_SIZE + padding)
+        goto end;
+    *outlen = inlen - SM4_BLOCK_BYTE_SIZE - padding;
     memmove(out, outbuf, *outlen);
     ret = 0;
 end:

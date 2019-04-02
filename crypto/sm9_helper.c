@@ -88,9 +88,27 @@ int write_big(big r, struct _string *s) {
     return -1;
 }
 
+static size_t __epoint_size(epoint *e, big *xr, big *yr) {
+    size_t ret;
+    big x, y;
+    init_big(x);
+    init_big(y);
+    epoint_get(e, x, y);
+    ret = big_size(x) + big_size(y);
+    if (xr) *xr = x;
+    else release_big(x);
+    if (yr) *yr = y;
+    else release_big(y);
+    return ret;
+}
+
+size_t epoint_size(epoint *e) {
+    return __epoint_size(e, NULL, NULL);
+}
+
 int write_epoint(epoint *e, struct _string *s) {
     big x, y;
-    size_t size = epoint_size(e, &x, &y);
+    size_t size = __epoint_size(e, &x, &y);
     uint8_t *buf = NEW(uint8_t, size);
     size_t r;
     r = write_big_buf(x, buf, size);
@@ -103,26 +121,12 @@ int write_epoint(epoint *e, struct _string *s) {
 size_t write_epoint_buf(epoint *e, uint8_t *buf, size_t size) {
     big x, y;
     size_t s;
-    epoint_size(e, &x, &y);
+    __epoint_size(e, &x, &y);
     s = write_big_buf(x, buf, size);
     s += write_big_buf(y, buf + s, size - s);
     release_big(x);
     release_big(y);
     return s;
-}
-
-size_t epoint_size(epoint *e, big *xr, big *yr) {
-    size_t ret;
-    big x, y;
-    init_big(x);
-    init_big(y);
-    epoint_get(e, x, y);
-    ret = big_size(x) + big_size(y);
-    if (xr) *xr = x;
-    else release_big(x);
-    if (yr) *yr = y;
-    else release_big(y);
-    return ret;
 }
 
 int read_epoint(epoint *e, const uint8_t *b, size_t blen) {

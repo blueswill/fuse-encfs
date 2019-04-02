@@ -40,6 +40,7 @@ struct create_args {
     const char *iddir;
     int blkfd;
     int iddirfd;
+    int regenerate;
     off_t blksize;
     struct master_key_pair *pair;
 };
@@ -92,6 +93,17 @@ static void check_block(struct create_args *args) {
     args->blksize = st.st_size;
 }
 
+static void delete_all_ids(struct create_args *args) {
+    DIR *dir = fdopendir(dup(args->iddirfd));
+    struct dirent *e;
+    if (!dir)
+        return;
+    while ((e = readdir(dir)))
+        if (e->d_type == DT_REG)
+            unlinkat(args->iddirfd, e->d_name, 0);
+    closedir(dir);
+}
+
 static void check_master_pair(struct create_args *args) {
     int fd = open(args->masterfile, O_RDONLY);
     int flag = 0;
@@ -123,6 +135,10 @@ static void check_master_pair(struct create_args *args) {
             exit(EXIT_FAILURE);
         }
     }
+    args->regenerate = 1;
+    delete_all_ids(args);
+    fprintf(stderr, "delete all old ids\n");
+    fprintf(stderr, "generating new master key pair\n");
     if (!(args->pair = generate_master_key_pair(TYPE_ENCRYPT))) {
         fprintf(stderr, "read master key pair error\n");
         exit(EXIT_FAILURE);
