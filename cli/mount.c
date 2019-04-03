@@ -1,10 +1,10 @@
 #include<fuse3/fuse.h>
+#include<stdio.h>
 #include<stdlib.h>
 #include<locale.h>
 #include"sm9.h"
 #include"encfs.h"
 #include"context.h"
-#include"sm9_helper.h"
 
 int main(int argc, char **argv) {
     setlocale(LC_ALL, "");

@@ -13,7 +13,6 @@
 #include"encfs.h"
 #include"encfs_helper.h"
 #include"config.h"
-#include"sm9_helper.h"
 
 static struct option opts[] = {
     {"master-pair-file", required_argument, NULL, 'm'},

@@ -27,6 +27,8 @@ size_t zzn12_size(struct zzn12 *z) {
 
 int zzn12_to_string(struct zzn12 *z, uint8_t *buf, size_t size) {
     std::string str = z->inner.toByteArray();
+    if (str.size() > size)
+        return 0;
     memmove(buf, str.data(), str.size());
     return str.size();
 }

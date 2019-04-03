@@ -1,7 +1,4 @@
-set(MIRACL_DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/MIRACL)
-add_subdirectory(zzn12)
 include_directories(${MIRACL_DIRECTORY}/include)
-include_directories(${PROJECT_SOURCE_DIR}/include)
 execute_process(
     WORKING_DIRECTORY ${MIRACL_DIRECTORY}/include
     COMMAND cp mirdef.h64 mirdef.h
@@ -29,3 +26,5 @@ add_library(smcrypt STATIC
     )
 
 target_link_libraries(smcrypt miracl zzn12)
+
+add_subdirectory(zzn12)
