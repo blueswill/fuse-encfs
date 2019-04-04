@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <menu id="mode_menu">
+        <section>
+            <item>
+                <attribute name="label" translatable="yes">create mode</attribute>
+                <attribute name="action">win.mode</attribute>
+                <attribute name="target">create</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">mount mode</attribute>
+                <attribute name="action">win.mode</attribute>
+                <attribute name="target">mount</attribute>
+            </item>
+        </section>
+        <section>
+            <item>
+                <attribute name="label" translatable="yes">Preferences</attribute>
+                <attribute name="action">app.preferences</attribute>
+            </item>
+        </section>
+    </menu>
+</interface>

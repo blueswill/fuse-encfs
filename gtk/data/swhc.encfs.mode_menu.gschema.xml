@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <enum id="swhc.encfs.mode_menu">
+        <value value="0" nick="create"/>
+        <value value="1" nick="mount"/>
+    </enum>
+    <schema path="/swhc/encfs/" id="swhc.encfs">
+        <key type="s" name="default-id-directory">
+            <default>''</default>
+            <summary>default id directory</summary>
+            <description>directory to store id private key</description>
+        </key>
+    </schema>
+</schemalist>
