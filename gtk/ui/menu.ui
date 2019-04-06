@@ -3,20 +3,26 @@
     <menu id="mode_menu">
         <section>
             <item>
-                <attribute name="label" translatable="yes">create mode</attribute>
+                <attribute name="label" translatable="yes">Create mode</attribute>
                 <attribute name="action">win.mode</attribute>
                 <attribute name="target">create</attribute>
             </item>
             <item>
-                <attribute name="label" translatable="yes">mount mode</attribute>
+                <attribute name="label" translatable="yes">Mount mode</attribute>
                 <attribute name="action">win.mode</attribute>
                 <attribute name="target">mount</attribute>
             </item>
         </section>
+    </menu>
+    <menu id="create_menu">
         <section>
             <item>
-                <attribute name="label" translatable="yes">Preferences</attribute>
-                <attribute name="action">app.preferences</attribute>
+                <attribute name="label" translatable="yes">Select master key pair</attribute>
+                <attribute name="action">win.select-master</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">Select ID directory</attribute>
+                <attribute name="action">win.select-iddir</attribute>
             </item>
         </section>
     </menu>

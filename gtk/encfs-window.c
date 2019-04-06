@@ -1,6 +1,7 @@
 #include"encfs-window.h"
 #include"encfs-mount-grid.h"
 #include"encfs-create-grid.h"
+#include"encfs-mount-grid.h"
 
 enum {
     PROP_0,
@@ -12,44 +13,119 @@ struct _EncfsWindow {
     GtkApplicationWindow parent;
     GtkMenuButton *usb_sel_button;
     GtkMenuButton *mode_menu_button;
+    GtkMenuButton *action_menu_button;
+    EncfsCreateGrid *create_grid;
+    EncfsMountGrid *mount_grid;
     GtkLabel *usb_label;
     GtkStack *action_stack;
     GSettings *settings;
     UDisksClient *client;
-    GMenu *usb_menu;
+    GMenu *usb_menu, *create_menu;
     GPtrArray *objects;
 };
 
 G_DEFINE_TYPE(EncfsWindow, encfs_window, GTK_TYPE_APPLICATION_WINDOW);
 
 static void on_mode_activate(GSimpleAction *action,
-        GVariant *parameter,
-        gpointer userdata) {
+                             GVariant *parameter,
+                             gpointer userdata) {
     EncfsWindow *win = ENCFS_WINDOW(userdata);
+    const gchar *mode = g_variant_get_string(parameter, NULL);
     g_simple_action_set_state(action, parameter);
-    gtk_stack_set_visible_child_name(win->action_stack,
-            g_variant_get_string(parameter, NULL));
+    gtk_stack_set_visible_child_name(win->action_stack, mode);
+    if (!g_strcmp0(mode, "create")) {
+        gtk_widget_set_sensitive(GTK_WIDGET(win->action_menu_button), TRUE);
+        gtk_menu_button_set_menu_model(win->action_menu_button,
+                                       G_MENU_MODEL(win->create_menu));
+    }
+    else
+        gtk_widget_set_sensitive(GTK_WIDGET(win->action_menu_button), FALSE);
     GtkPopover *pop = gtk_menu_button_get_popover(win->mode_menu_button);
     gtk_widget_hide(GTK_WIDGET(pop));
 }
 
 static void on_usb_sel_change(GSimpleAction *action,
-        GVariant *parameter,
-        gpointer userdata) {
+                              GVariant *parameter,
+                              gpointer userdata) {
     (void)action;
     EncfsWindow *win = ENCFS_WINDOW(userdata);
     GMenuModel *model = G_MENU_MODEL(win->usb_menu);
     int index = g_variant_get_int32(parameter);
     GVariant *label = g_menu_model_get_item_attribute_value(model, index, "label", G_VARIANT_TYPE_STRING);
-    if (!label)
-        g_warning("get %d attribute NULL", index);
-    else
-        gtk_label_set_text(win->usb_label, g_variant_get_string(label, NULL));
+    UDisksObject *obj = UDISKS_OBJECT(g_ptr_array_index(win->objects, index));
+    GValue val = G_VALUE_INIT;
+    g_value_init(&val, UDISKS_TYPE_OBJECT);
+    gtk_label_set_text(win->usb_label, g_variant_get_string(label, NULL));
+    g_value_set_object(&val, obj);
+    g_object_set_property(G_OBJECT(win->create_grid), "target", &val);
+    g_object_set_property(G_OBJECT(win->mount_grid), "target", &val);
+    g_value_unset(&val);
+}
+
+static void on_select_master_clicked(GSimpleAction *action,
+                                     GVariant *parameter,
+                                     gpointer userdata) {
+    (void)action;
+    (void)parameter;
+    EncfsWindow *win = ENCFS_WINDOW(userdata);
+    GtkWidget *dialog =
+        gtk_file_chooser_dialog_new("Select master key pair",
+                                    GTK_WINDOW(win),
+                                    GTK_FILE_CHOOSER_ACTION_SAVE,
+                                    "Cancel", GTK_RESPONSE_CANCEL,
+                                    "Open", GTK_RESPONSE_ACCEPT,
+                                    NULL);
+    GtkFileFilter *filter = gtk_file_filter_new();
+    gtk_file_filter_add_pattern(filter, "*.master");
+    gtk_file_filter_set_name(filter, "master file");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+    gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (res == GTK_RESPONSE_ACCEPT) {
+        GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+        gchar *name = gtk_file_chooser_get_filename(chooser);
+        GValue val = G_VALUE_INIT;
+        g_value_init(&val, G_TYPE_STRING);
+        g_value_set_string(&val, name);
+        g_object_set_property(G_OBJECT(win->create_grid), "master-file", &val);
+        g_value_unset(&val);
+        g_free(name);
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+
+static void on_select_iddir_clicked(GSimpleAction *action,
+                                    GVariant *parameter,
+                                    gpointer userdata) {
+    (void)action;
+    (void)parameter;
+    EncfsWindow *win = ENCFS_WINDOW(userdata);
+    GtkWidget *dialog =
+        gtk_file_chooser_dialog_new("Select ID directory",
+                                    GTK_WINDOW(win),
+                                    GTK_FILE_CHOOSER_ACTION_CREATE_FOLDER |
+                                    GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                                    "Cancel", GTK_RESPONSE_CANCEL,
+                                    "Open", GTK_RESPONSE_ACCEPT,
+                                    NULL);
+    gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (res == GTK_RESPONSE_ACCEPT) {
+        GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+        gchar *name = gtk_file_chooser_get_filename(chooser);
+        GValue val = G_VALUE_INIT;
+        g_value_init(&val, G_TYPE_STRING);
+        g_value_set_string(&val, name);
+        g_object_set_property(G_OBJECT(win->create_grid), "iddir", &val);
+        g_value_unset(&val);
+        g_free(name);
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
 }
 
 static const GActionEntry actions[] = {
     { "mode", on_mode_activate, "s", "'create'", NULL, 0 },
-    { "change-usb", on_usb_sel_change, "i", NULL, NULL, 0 }
+    { "change-usb", on_usb_sel_change, "i", NULL, NULL, 0 },
+    { "select-master", on_select_master_clicked, NULL, NULL, NULL, 0 },
+    { "select-iddir", on_select_iddir_clicked, NULL, NULL, NULL, 0 }
 };
 
 static UDisksClient *encfs_window_get_client(EncfsWindow *win) {
@@ -59,7 +135,7 @@ static UDisksClient *encfs_window_get_client(EncfsWindow *win) {
 
 static gint _g_dbus_object_compare(GDBusObject *a, GDBusObject *b) {
     return g_strcmp0(g_dbus_object_get_object_path(a),
-            g_dbus_object_get_object_path(b));
+                     g_dbus_object_get_object_path(b));
 }
 
 static gboolean should_include_block(UDisksObject *object) {
@@ -176,6 +252,10 @@ static void encfs_window_constructed(GObject *obj) {
     self->settings = g_settings_new("swhc.encfs");
     GtkBuilder *builder = gtk_builder_new_from_resource("/swhc/encfs/menu.ui");
     GMenu *menu = G_MENU(gtk_builder_get_object(builder, "mode_menu"));
+    self->create_menu = G_MENU(gtk_builder_get_object(builder, "create_menu"));
+    g_object_ref(self->create_menu);
+    /* default mode is create mode */
+    gtk_menu_button_set_menu_model(self->action_menu_button, G_MENU_MODEL(self->create_menu));
     gtk_menu_button_set_menu_model(self->mode_menu_button, G_MENU_MODEL(menu));
     g_object_unref(builder);
     g_action_map_add_action_entries(G_ACTION_MAP(self), actions, G_N_ELEMENTS(actions), self);
@@ -189,11 +269,15 @@ static void encfs_window_finalize(GObject *obj) {
         g_object_unref(self->client);
     if (self->settings)
         g_object_unref(self->settings);
+    if (self->create_menu)
+        g_object_unref(self->create_menu);
     G_OBJECT_CLASS(encfs_window_parent_class)->finalize(obj);
 }
 
 static void encfs_window_get_property(GObject *obj,
-        guint prop_id, GValue *value, GParamSpec *pspec) {
+                                      guint prop_id,
+                                      GValue *value,
+                                      GParamSpec *pspec) {
     EncfsWindow *self = ENCFS_WINDOW(obj);
     switch (prop_id) {
         case PROP_CLIENT:
@@ -206,11 +290,16 @@ static void encfs_window_get_property(GObject *obj,
 }
 
 static void encfs_window_set_property(GObject *obj,
-        guint prop_id, const GValue *value, GParamSpec *pspec) {
+                                      guint prop_id,
+                                      const GValue *value,
+                                      GParamSpec *pspec) {
     EncfsWindow *self = ENCFS_WINDOW(obj);
     switch (prop_id) {
         case PROP_CLIENT:
             self->client = UDISKS_CLIENT(g_value_dup_object(value));
+            g_signal_connect_swapped(self->client, "changed",
+                                     (GCallback)update_usb_menus,
+                                     self);
             break;
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, prop_id, pspec);
@@ -226,18 +315,24 @@ static void encfs_window_class_init(EncfsWindowClass *klass) {
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, mode_menu_button);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, action_stack);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, usb_label);
+    gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, action_menu_button);
+    gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, create_grid);
+    gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, mount_grid);
     GObjectClass *objclass = G_OBJECT_CLASS(klass);
     objclass->constructed = encfs_window_constructed;
     objclass->finalize = encfs_window_finalize;
     objclass->get_property = encfs_window_get_property;
     objclass->set_property = encfs_window_set_property;
     g_object_class_install_property(objclass,
-            PROP_CLIENT,
-            g_param_spec_object("client",
-                "Client",
-                "The client used by the window",
-                UDISKS_TYPE_CLIENT,
-                G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
+                                    PROP_CLIENT,
+                                    g_param_spec_object("client",
+                                                        "Client",
+                                                        "The client used by the window",
+                                                        UDISKS_TYPE_CLIENT,
+                                                        G_PARAM_READABLE |
+                                                        G_PARAM_WRITABLE |
+                                                        G_PARAM_CONSTRUCT_ONLY |
+                                                        G_PARAM_STATIC_STRINGS));
 }
 
 static void encfs_window_init(EncfsWindow *win) {
@@ -248,7 +343,7 @@ static void encfs_window_init(EncfsWindow *win) {
 
 EncfsWindow *encfs_window_new(EncfsApplication *app, UDisksClient *client) {
     return g_object_new(ENCFS_TYPE_GTK_WINDOW,
-            "application", app,
-            "client", client,
-            NULL);
+                        "application", app,
+                        "client", client,
+                        NULL);
 }

@@ -5,56 +5,17 @@
   <template class="EncfsCreateGrid" parent="GtkGrid">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="margin_left">6</property>
-    <property name="margin_right">6</property>
+    <property name="margin_left">90</property>
+    <property name="margin_right">90</property>
     <property name="margin_top">20</property>
     <property name="margin_bottom">20</property>
+    <property name="hexpand">True</property>
     <property name="orientation">vertical</property>
     <property name="row_spacing">6</property>
     <child>
       <object class="GtkBox">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
-        <property name="halign">center</property>
-        <property name="margin_top">6</property>
-        <property name="margin_bottom">6</property>
-        <property name="hexpand">True</property>
-        <property name="spacing">12</property>
-        <child>
-          <object class="GtkLabel" id="masterlabel">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="label" translatable="yes">master key pair</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">0</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkFileChooserButton" id="master_file">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="title" translatable="yes"/>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
-        </child>
-      </object>
-      <packing>
-        <property name="left_attach">0</property>
-        <property name="top_attach">0</property>
-      </packing>
-    </child>
-    <child>
-      <object class="GtkBox">
-        <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <property name="halign">center</property>
         <property name="vexpand">True</property>
         <property name="orientation">vertical</property>
         <child>
@@ -67,20 +28,13 @@
             <property name="min_content_height">250</property>
             <property name="max_content_width">500</property>
             <child>
-              <object class="GtkTreeView" id="id_list">
+              <object class="GtkViewport">
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <child internal-child="selection">
-                  <object class="GtkTreeSelection"/>
-                </child>
+                <property name="can_focus">False</property>
                 <child>
-                  <object class="GtkTreeViewColumn" id="id_name">
-                    <property name="title" translatable="yes">name</property>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkTreeViewColumn" id="id_status">
-                    <property name="title" translatable="yes">status</property>
+                  <object class="GtkListBox" id="id_list">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
                   </object>
                 </child>
               </object>
@@ -134,12 +88,12 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">1</property>
+        <property name="top_attach">0</property>
       </packing>
     </child>
     <child>
       <object class="GtkButton" id="create_button">
-        <property name="label" translatable="yes">create</property>
+        <property name="label" translatable="yes">Create</property>
         <property name="width_request">100</property>
         <property name="visible">True</property>
         <property name="can_focus">True</property>
@@ -151,7 +105,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">2</property>
+        <property name="top_attach">1</property>
       </packing>
     </child>
   </template>
