@@ -3,6 +3,7 @@
 #include<stdio.h>
 #include<string.h>
 #include<stdlib.h>
+#include<gmodule.h>
 #include"sm3.h"
 #include"encfs_helper.h"
 
@@ -46,7 +47,7 @@ uint32_t *extend(const char *str, size_t str_len, size_t *size) {
     uint64_t l = str_len << 3;
     size_t k = CEIL_OFFSET2(l + 65, 9);
     *size = (l + k + 65) >> 5;
-    uint32_t *buf = NEW(uint32_t, *size);
+    uint32_t *buf = g_new(uint32_t, *size);
     unsigned char *bc = (unsigned char *)buf;
     if (!buf) return NULL;
     memmove(buf, str, str_len);
@@ -62,10 +63,10 @@ uint32_t *extend(const char *str, size_t str_len, size_t *size) {
 }
 
 static uint32_t *CF(const uint32_t *v, const uint32_t *b) {
-    uint32_t *regs = NEW(uint32_t, 8);
-    uint32_t *W = NEW(uint32_t, 132);
+    uint32_t *regs = g_new(uint32_t, 8);
+    uint32_t *W = g_new(uint32_t, 132);
     if (!regs || !W) {
-        free(regs);
+        g_free(regs);
         return NULL;
     }
     uint32_t ss1, ss2, tt1, tt2;
@@ -98,7 +99,7 @@ static uint32_t *CF(const uint32_t *v, const uint32_t *b) {
     }
     for (j = 0; j < 8; ++j)
         regs[j] ^= v[j];
-    free(W);
+    g_free(W);
     return regs;
 }
 
@@ -113,7 +114,7 @@ int sm3(const char *str, size_t str_len, uint8_t *outb) {
     for (i = 0; i < n; ++i) {
         uint32_t *vt = CF(v, B[i]);
         if (v != iv)
-            free(v);
+            g_free(v);
         if (!vt)
             return -1;
         v = vt;
@@ -123,6 +124,6 @@ int sm3(const char *str, size_t str_len, uint8_t *outb) {
     }
     memmove(outb, v, sizeof(iv));
     if (v != iv)
-        free(v);
+        g_free(v);
     return 0;
 }

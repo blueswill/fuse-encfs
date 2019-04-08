@@ -1,10 +1,12 @@
 #include<string.h>
 #include<unistd.h>
+#include<pthread.h>
 #include<errno.h>
+#include<gmodule.h>
 #include"config.h"
-#include"encfs.h"
-#include"context.h"
+#include"encfs-cb.h"
 #include"encfs_helper.h"
+#include"mount-context.h"
 #include"sm9.h"
 #include"sm4.h"
 
@@ -17,7 +19,7 @@ void *encfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
 
 int encfs_getattr(const char *path, struct stat *st, struct fuse_file_info *info) {
     (void)info;
-    struct encfs_context *context = fuse_get_context()->private_data;
+    struct mount_context *ctx = fuse_get_context()->private_data;
     memset(st, 0, sizeof(*st));
     if (!strcmp(path, "/")) {
         st->st_mode = S_IFDIR | 0755;
@@ -25,9 +27,9 @@ int encfs_getattr(const char *path, struct stat *st, struct fuse_file_info *info
     }
     else if (!strcmp(path + 1, "target")) {
         struct stat blkst;
-        if(fstat(context->blkfd, &blkst) < 0)
+        if(fstat(ctx->blkfd, &blkst) < 0)
             return -errno;
-        st->st_size = context->block_size - context->start_offset;
+        st->st_size = ctx->block_size - ctx->start_offset;
         st->st_mode = S_IFREG | 0660;
         st->st_nlink = 1;
     }
@@ -58,7 +60,7 @@ int encfs_open(const char *path, struct fuse_file_info *fi) {
 }
 
 static int read_sector(char *buf, size_t size, off_t offset) {
-    struct encfs_context *context = fuse_get_context()->private_data;
+    struct mount_context *ctx = fuse_get_context()->private_data;
     off_t start = FLOOR2(offset, SM4_BLOCK_BYTE_SHIFT);
     off_t sect_off = FLOOR_OFFSET2(offset, SECTOR_SHIFT);
     off_t end;
@@ -70,11 +72,11 @@ static int read_sector(char *buf, size_t size, off_t offset) {
         size = SIZE2(SECTOR_SHIFT) - sect_off;
     end = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
     s = end - start;
-    in = NEW(char, s);
-    out = NEW(char, s);
+    in = g_new(char, s);
+    out = g_new(char, s);
     if (!in || !out)
         goto end;
-    ret = pread(context->blkfd, in, s, start);
+    ret = pread(ctx->blkfd, in, s, start);
     if (ret < 0)
         goto end;
     if (ret != (int)s) {
@@ -82,19 +84,19 @@ static int read_sector(char *buf, size_t size, off_t offset) {
         goto end;
     }
     tweak[0] = INDEX2(start, SECTOR_SHIFT);
-    if (sm4_xts(context->key, (void *)in, s, (void *)out,
+    if (sm4_xts(ctx->key, (void *)in, s, (void *)out,
                 (void *)tweak, INDEX2(sect_off, SM4_BLOCK_BYTE_SHIFT), 0) < 0)
         goto end;
     memmove(buf, out + FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT), size);
     ret = size;
 end:
-    free(in);
-    free(out);
+    g_free(in);
+    g_free(out);
     return ret;
 }
 
 static int write_sector(const char *buf, size_t size, off_t offset) {
-    struct encfs_context *context = fuse_get_context()->private_data;
+    struct mount_context *context = fuse_get_context()->private_data;
     char cipher[SIZE2(SECTOR_SHIFT)];
     uint32_t tweak[SM4_XTS_KEY_BYTE_SIZE >> 2] = {};
     off_t off = offset, stop = offset + size;
@@ -135,7 +137,7 @@ static int __encfs_write(const char *buf, size_t size, off_t offset) {
     off_t stop = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
     off_t sect_off = FLOOR_OFFSET2(offset, SM4_BLOCK_BYTE_SHIFT);
     size_t left = size;
-    char *cipher = NEW(char, stop - start);
+    char *cipher = g_new(char, stop - start);
     const char *from = buf;
     char *to = cipher;
     if (!cipher)
@@ -164,14 +166,14 @@ end:
         off_t stop = CEIL2(offset + size, SM4_BLOCK_BYTE_SHIFT);
         ret = write_sector(cipher, stop - start, start);
     }
-    free(cipher);
+    g_free(cipher);
     return ret;
 }
 
 int encfs_read(const char *path, char *buf, size_t size, off_t offset,
         struct fuse_file_info *fi) {
     int ret;
-    struct encfs_context *context = fuse_get_context()->private_data;
+    struct mount_context *context = fuse_get_context()->private_data;
     (void)fi;
     if (strcmp(path, "/target"))
         return -ENOENT;
@@ -196,7 +198,7 @@ free_lock:
 int encfs_write(const char *path, const char *buf, size_t size, off_t offset,
         struct fuse_file_info *fi) {
     int ret = 0;
-    struct encfs_context *context = fuse_get_context()->private_data;
+    struct mount_context *context = fuse_get_context()->private_data;
     (void)fi;
     if (strcmp(path, "/target"))
         return -ENOENT;
@@ -217,6 +219,6 @@ free_lock:
 }
 
 void encfs_destroy(void *private_data) {
-    encfs_context_free(private_data);
+    mount_context_free(private_data);
     sm9_release();
 }

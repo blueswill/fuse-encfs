@@ -1,5 +1,6 @@
 #include<math.h>
 #include<string.h>
+#include<gmodule.h>
 #include"sm9_helper.h"
 #include"parameter.h"
 #include"sm3.h"
@@ -8,7 +9,7 @@ int KDF(struct _string *z, size_t hlen, struct _string *ret) {
     int n = (hlen + (SM3_BIT_SIZE - 1)) >> SM3_BIT_SHIFT;
     size_t size = n << SM3_BYTE_SHIFT;
     size_t left = (((SM3_BIT_SIZE + hlen - 1) & ~SM3_BIT_MASK) - hlen) >> 3;
-    uint8_t *res = NEW(uint8_t, size);
+    uint8_t *res = g_new(uint8_t, size);
     if (!res)
         return -1;
     uint32_t ct = 0x1;
@@ -39,7 +40,7 @@ static int H(struct _string *z, big *b) {
     read_big(habig, ha.buf, ha.size);
     divide(habig, n1, n1);
     incr(habig, 1, h);
-    free(ha.buf);
+    g_free(ha.buf);
     *b = h;
     release_big(n1);
     release_big(habig);
@@ -50,14 +51,14 @@ int H1(const struct _string *id, uint8_t hid, big *b) {
     struct _string str;
     int ret;
     str.size = 2 + id->size + KDF_EXTRA_BYTE_LEN;
-    str.buf = NEW(uint8_t, str.size);
+    str.buf = g_new(uint8_t, str.size);
     if (!str.buf)
         return -1;
     str.buf[0] = 0x01;
     str.buf[id->size + 1] = hid;
     memmove(str.buf + 1, id->buf, id->size);
     ret = H(&str, b);
-    free(str.buf);
+    g_free(str.buf);
     return ret;
 }
 
@@ -65,20 +66,20 @@ int H2(const struct _string *id, uint8_t hid, big *b) {
     struct _string str;
     int ret;
     str.size = 2 + id->size + KDF_EXTRA_BYTE_LEN;
-    str.buf = NEW(uint8_t, str.size);
+    str.buf = g_new(uint8_t, str.size);
     if (!str.buf)
         return -1;
     str.buf[0] = 0x02;
     str.buf[id->size + 1] = hid;
     memmove(str.buf + 1, id->buf, id->size);
     ret = H(&str, b);
-    free(str.buf);
+    g_free(str.buf);
     return ret;
 }
 
 int write_big(big r, struct _string *s) {
     size_t len = big_size(r);
-    uint8_t *buf = NEW(uint8_t, len);
+    uint8_t *buf = g_new(uint8_t, len);
     if (buf) {
         len = big_to_bytes(len, r, (void *)buf, 0);
         s->buf = buf;
@@ -109,7 +110,7 @@ size_t epoint_size(epoint *e) {
 int write_epoint(epoint *e, struct _string *s) {
     big x, y;
     size_t size = __epoint_size(e, &x, &y);
-    uint8_t *buf = NEW(uint8_t, size);
+    uint8_t *buf = g_new(uint8_t, size);
     size_t r;
     r = write_big_buf(x, buf, size);
     r += write_big_buf(y, buf + r, size - r);

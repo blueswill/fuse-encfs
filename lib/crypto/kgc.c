@@ -1,6 +1,7 @@
 #include<stdint.h>
 #include<stdlib.h>
 #include<string.h>
+#include<gmodule.h>
 #include"sm9.h"
 #include"parameter.h"
 #include"sm9_helper.h"
@@ -33,12 +34,12 @@ static int mac(const struct _string *key, const struct _string *z, struct _strin
         goto end;
     ret = 0;
 end:
-    free(tmp.buf);
+    g_free(tmp.buf);
     return ret;
 }
 
 static struct master_key_pair *generate_encrypt_master_key_pair(void) {
-    struct master_key_pair *pair = NEW1(struct master_key_pair);
+    struct master_key_pair *pair = g_new(struct master_key_pair, 1);
     if (!pair)
         return NULL;
     pair->type = TYPE_ENCRYPT;
@@ -97,7 +98,7 @@ end:
 static struct private_key *get_encrypt_private_key(struct master_key_pair *pair,
         const struct _string *id, uint8_t hid) {
     big t2;
-    struct private_key *priv = NEW1(struct private_key);
+    struct private_key *priv = g_new(struct private_key, 1);
     if (!priv)
         return NULL;
     priv->type = TYPE_ENCRYPT;
@@ -114,7 +115,7 @@ static struct private_key *get_encrypt_private_key(struct master_key_pair *pair,
 free_priv:
     release_big(t2);
     release_ecn2(priv->e);
-    free(priv);
+    g_free(priv);
     return NULL;
 }
 
@@ -159,11 +160,11 @@ static int kdf(const struct _string *c1, struct zzn12 *w, struct _string *id, si
     s += zzn12_to_string(w, buf.buf + s, buf.size - s);
     memmove(buf.buf + s, id->buf, id->size);
     if (KDF(&buf, klen, &ret) < 0) {
-        free(buf.buf);
+        g_free(buf.buf);
         return -1;
     }
     *res = ret;
-    free(buf.buf);
+    g_free(buf.buf);
     return 0;
 }
 
@@ -179,7 +180,7 @@ static int handle_block(const struct _string *kdf, const struct _string *data,
         return -1;
     if (sm4_cbc(k1.buf, (void *)data->buf, data->size,
                 c2str->buf, &c2str->size, encrypt) < 0) {
-        free(c2str->buf);
+        g_free(c2str->buf);
         return -1;
     }
     *k2str = k2;
@@ -234,7 +235,7 @@ struct cipher *sm9_encrypt(
     init_big(r);
     g = zzn12_get();
     k.buf = NULL;
-    if (!(cipher = NEWZ1(struct cipher)))
+    if (!(cipher = g_new0(struct cipher, 1)))
         goto end;
     if (get_qb(pair, &idstr, HID_ENCRYPT, qb) < 0)
         goto end;
@@ -271,9 +272,9 @@ struct cipher *sm9_encrypt(
             else if (!ret)
                 break;
         }
-        free(k.buf);
-        free(cipher->c1.buf);
-        free(cipher->c2.buf);
+        g_free(k.buf);
+        g_free(cipher->c1.buf);
+        g_free(cipher->c2.buf);
         cipher->c1.buf = NULL;
         cipher->c2.buf = NULL;
     }
@@ -286,12 +287,12 @@ end:
     release_epoint(qb);
     release_big(r);
     zzn12_free(g);
-    free(k.buf);
+    g_free(k.buf);
     if (ret < 0) {
-        free(cipher->c1.buf);
-        free(cipher->c2.buf);
-        free(cipher->c3.buf);
-        free(cipher);
+        g_free(cipher->c1.buf);
+        g_free(cipher->c2.buf);
+        g_free(cipher->c3.buf);
+        g_free(cipher);
         cipher = NULL;
     }
     return cipher;
@@ -346,10 +347,10 @@ int sm9_decrypt(
 end:
     release_epoint(c1);
     zzn12_free(w);
-    free(k.buf);
-    free(u.buf);
+    g_free(k.buf);
+    g_free(u.buf);
     if (ret < 0)
-        free(m.buf);
+        g_free(m.buf);
     else {
         *out = (void *)m.buf;
         *outlen = m.size;

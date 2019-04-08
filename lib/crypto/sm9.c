@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include<math.h>
+#include<gmodule.h>
 #include"parameter.h"
 #include"sm9_helper.h"
 
@@ -31,7 +32,7 @@ struct cipher *ciphertext_read(const char *in, size_t inlen) {
     struct cipher *cipher = NULL;
     if (!in || inlen <= 96)
         return NULL;
-    cipher = NEWZ1(struct cipher);
+    cipher = g_new0(struct cipher, 1);
     if (!cipher)
         return NULL;
     if (!NEW_STRING(&cipher->c1, 64) ||
@@ -65,10 +66,10 @@ size_t ciphertext_write(const struct cipher *cipher,
 
 void ciphertext_free(struct cipher *cipher) {
     if (cipher) {
-        free(cipher->c1.buf);
-        free(cipher->c2.buf);
-        free(cipher->c3.buf);
-        free(cipher);
+        g_free(cipher->c1.buf);
+        g_free(cipher->c2.buf);
+        g_free(cipher->c3.buf);
+        g_free(cipher);
     }
 }
 
@@ -79,11 +80,11 @@ size_t private_key_size(const struct private_key *priv) {
 struct private_key *private_key_read(const char *b, size_t blen) {
     struct private_key *priv = NULL;
     if (!b || blen < 129 ||
-            !(priv = NEW1(struct private_key)))
+            !(priv = g_new(struct private_key, 1)))
         return NULL;
     init_ecn2(priv->e);
     if (!read_ecn2_byte128(&priv->e, (void *)b)) {
-        free(priv);
+        g_free(priv);
         priv = NULL;
     }
     if (priv)
@@ -106,7 +107,7 @@ size_t master_key_pair_size(const struct master_key_pair *pair) {
 struct master_key_pair *master_key_pair_read(const char *buf, size_t len) {
     int ret = -1;
     size_t size;
-    struct master_key_pair *pair = NEW1(struct master_key_pair);
+    struct master_key_pair *pair = g_new(struct master_key_pair, 1);
     if (!buf || !pair || len < (size_t)buf[0] + 1)
         goto end;
     init_big(pair->priv);
@@ -123,7 +124,7 @@ struct master_key_pair *master_key_pair_read(const char *buf, size_t len) {
     ret = 0;
 end:
     if (ret < 0) {
-        free(pair);
+        g_free(pair);
         pair = NULL;
     }
     return pair;
@@ -137,14 +138,14 @@ size_t master_key_pair_write(const struct master_key_pair *pair, char *buf, size
     write_big(pair->priv, &s);
     write_epoint(pair->pub, &t);
     if (3 + s.size + t.size > len) {
-        free(s.buf);
-        free(t.buf);
+        g_free(s.buf);
+        g_free(t.buf);
         return 0;
     }
     buf[0] = s.size;
     memmove(buf + 1, s.buf, s.size);
     size = 1 + s.size;
-    free(s.buf);
+    g_free(s.buf);
     buf[size++] = t.size;
     memmove(buf + size, t.buf, t.size);
     size += t.size;
@@ -155,11 +156,11 @@ size_t master_key_pair_write(const struct master_key_pair *pair, char *buf, size
 void master_key_pair_free(struct master_key_pair *pair) {
     release_big(pair->priv);
     release_epoint(pair->pub);
-    free(pair);
+    g_free(pair);
 }
 
 void private_key_free(struct private_key *key) {
     release_ecn2(key->e);
-    free(key);
+    g_free(key);
 }
 

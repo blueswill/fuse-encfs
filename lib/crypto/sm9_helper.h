@@ -3,6 +3,7 @@
 
 #include<stddef.h>
 #include<stdint.h>
+#include<gmodule.h>
 #include"miracl.h"
 #include"encfs_helper.h"
 #include"sm9.h"
@@ -47,7 +48,7 @@ void report_error(enum sm9_error err);
 #define NEW_STRING(sptr,l) ({\
         struct _string *ptr = (sptr);\
         ptr->size = (l);\
-        ptr->buf = NEW(uint8_t, ptr->size);\
+        ptr->buf = g_new(uint8_t, ptr->size);\
         })
 
 #define init_big(x) ((x) = mirvar(0))

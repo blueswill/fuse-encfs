@@ -1,5 +1,5 @@
 #include<string.h>
-#include"encfs_helper.h"
+#include<gmodule.h>
 #include"sm4.h"
 
 static int shift_left(uint32_t *b) {
@@ -43,8 +43,8 @@ int sm4_xts(const uint8_t *key, const uint8_t *data, size_t datalen,
     int ret = -1;
     if (datalen & SM4_BLOCK_BYTE_MASK)
         return -1;
-    if (!(in = NEW(uint32_t, datalen >> 2)) ||
-            !(outbuf = NEW(uint32_t, datalen >> 2)))
+    if (!(in = g_new(uint32_t, datalen >> 2)) ||
+            !(outbuf = g_new(uint32_t, datalen >> 2)))
         goto end;
     memmove(key32, key, SM4_XTS_KEY_BYTE_SIZE);
     memmove(in, data, datalen);
@@ -64,7 +64,7 @@ int sm4_xts(const uint8_t *key, const uint8_t *data, size_t datalen,
     memmove(out, outbuf, datalen);
     ret = 0;
 end:
-    free(in);
-    free(outbuf);
+    g_free(in);
+    g_free(outbuf);
     return ret;
 }

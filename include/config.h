@@ -7,4 +7,7 @@
  */
 #define SECTOR_SHIFT 9
 
+#define PRIVATE_KEY_SUFFIX          ".priv"
+#define MASTER_KEY_PAIR_SUFFIX      ".master"
+
 #endif

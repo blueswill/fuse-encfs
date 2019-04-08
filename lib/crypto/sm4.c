@@ -3,6 +3,7 @@
 #include<stdio.h>
 #include<string.h>
 #include<sys/random.h>
+#include<gmodule.h>
 #include"encfs_helper.h"
 #include"sm4.h"
 
@@ -88,11 +89,9 @@ static void get_round_key(const uint32_t *key, uint32_t *out) {
 }
 
 static int sm4_encrypt(const uint32_t *in, const uint32_t *key, uint32_t *out) {
-    uint32_t *rk = NEW(uint32_t, 32);
+    uint32_t rk[32];
     uint32_t tmp;
     out[0] = in[0], out[1] = in[1], out[2] = in[2], out[3] = in[3];
-    if (!rk)
-        return -1;
     get_round_key(key, rk);
     for (int i = 4; i <= 32; i += 4) {
         out[0] = F(out[0], out[1], out[2], out[3], rk[i - 4]);
@@ -106,16 +105,13 @@ static int sm4_encrypt(const uint32_t *in, const uint32_t *key, uint32_t *out) {
     tmp = out[1];
     out[1] = out[2];
     out[2] = tmp;
-    free(rk);
     return 0;
 }
 
 static int sm4_decrypt(const uint32_t *in, const uint32_t *key, uint32_t *out) {
-    uint32_t *rk = NEW(uint32_t, 32);
+    uint32_t rk[32];
     uint32_t tmp;
     out[0] = in[0], out[1] = in[1], out[2] = in[2], out[3] = in[3];
-    if (!rk)
-        return -1;
     get_round_key(key, rk);
     for (int i = 4; i <= 32; i += 4) {
         out[0] = F(out[0], out[1], out[2], out[3], rk[35 - i]);
@@ -129,7 +125,6 @@ static int sm4_decrypt(const uint32_t *in, const uint32_t *key, uint32_t *out) {
     tmp = out[1];
     out[1] = out[2];
     out[2] = tmp;
-    free(rk);
     return 0;
 }
 
@@ -154,9 +149,9 @@ static int sm4_cbc_encrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
         return 0;
     }
     /* for correct alignment */
-    key32 = NEW(uint32_t, SM4_KEY_BYTE_SIZE >> 2);
-    data = NEW(uint32_t, (max - SM4_BLOCK_BYTE_SIZE) >> 2);
-    outbuf = NEWZ(uint32_t, max >> 2);
+    key32 = (void *)g_new(uint32_t, SM4_KEY_BYTE_SIZE >> 2);
+    data = (void *)g_new(uint32_t, (max - SM4_BLOCK_BYTE_SIZE) >> 2);
+    outbuf = (void *)g_new0(uint32_t, max >> 2);
     if (!key32 || !data || !outbuf)
         goto end;
     memmove(key32, key, SM4_KEY_BYTE_SIZE);
@@ -176,9 +171,9 @@ static int sm4_cbc_encrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
     memmove(out, outbuf, max);
     ret = 0;
 end:
-    free(key32);
-    free(data);
-    free(outbuf);
+    g_free(key32);
+    g_free(data);
+    g_free(outbuf);
     return ret;
 }
 
@@ -193,9 +188,9 @@ static int sm4_cbc_decrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
         *outlen = inlen - SM4_BLOCK_BYTE_SIZE;
         return 0;
     }
-    key32 = NEW(uint32_t, SM4_KEY_BYTE_SIZE >> 2);
-    data = NEW(uint32_t, inlen >> 2);
-    outbuf = NEW(uint32_t, (inlen - SM4_BLOCK_BYTE_SIZE) >> 2);
+    key32 = (void *)g_new(uint32_t, SM4_KEY_BYTE_SIZE >> 2);
+    data = (void *)g_new(uint32_t, inlen >> 2);
+    outbuf = (void *)g_new(uint32_t, (inlen - SM4_BLOCK_BYTE_SIZE) >> 2);
     if (!key32 || !data || !outbuf)
         goto end;
     memmove(key32, key, SM4_KEY_BYTE_SIZE);
@@ -215,9 +210,9 @@ static int sm4_cbc_decrypt(const uint8_t *key, const uint8_t *in, size_t inlen,
     memmove(out, outbuf, *outlen);
     ret = 0;
 end:
-    free(key32);
-    free(data);
-    free(outbuf);
+    g_free(key32);
+    g_free(data);
+    g_free(outbuf);
     return ret;
 }
 
