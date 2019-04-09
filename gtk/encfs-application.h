@@ -11,6 +11,11 @@ G_DECLARE_FINAL_TYPE(EncfsApplication, encfs_application, ENCFS, APPLICATION, Gt
 
 EncfsApplication *encfs_application_new(void);
 
+gboolean encfs_application_loop_setup(GApplication *app,
+                                      GVariant *arg_fd, GUnixFDList *fd_list,
+                                      gchar **out_resulting_device, GUnixFDList **out_fd_list,
+                                      GError **error);
+
 G_END_DECLS
 
 #endif

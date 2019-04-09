@@ -104,11 +104,9 @@ int mount_context_mount_raw(struct mount_context *ctx, struct fuse_args *args) {
     return fuse_main(args->argc, args->argv, &oprs, ctx);
 }
 
-int mount_context_mount(struct mount_context *ctx, const char *mount_point,
-                        int argc, ...) {
+int mount_context_mountv(struct mount_context *ctx, const char *mount_point,
+                         int argc, va_list ap) {
     int ret;
-    va_list ap;
-    va_start(ap, argc);
     char **args = g_new(char*, argc + 3);
     args[0] = g_strdup("encfs");
     for (int i = 0; i < argc; ++i) {
@@ -118,9 +116,19 @@ int mount_context_mount(struct mount_context *ctx, const char *mount_point,
     args[argc + 1] = g_strdup(mount_point);
     args[argc + 2] = NULL;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc + 2, args);
-    ret = mount_context_mount_raw(ctx, &fuse_args);
+    struct mount_context *new = mount_context_copy(ctx);
+    if ((ret = mount_context_mount_raw(new, &fuse_args)))
+        mount_context_free(new);
     fuse_opt_free_args(&fuse_args);
     g_strfreev(args);
+}
+
+int mount_context_mount(struct mount_context *ctx, const char *mount_point,
+                        int argc, ...) {
+    int ret;
+    va_list ap;
+    va_start(ap, argc);
+    ret = mount_context_mountv(ctx, mount_point, argc, ap);
     va_end(ap);
     return ret;
 }

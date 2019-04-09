@@ -23,4 +23,7 @@ int mount_context_mount_raw(struct mount_context *ctx, struct fuse_args *args);
 int mount_context_mount(struct mount_context *ctx, const char *mount_point,
                         int argc, ...);
 
+int mount_context_mountv(struct mount_context *ctx, const char *mount_point,
+                         int argc, va_list ap);
+
 #endif

@@ -2,6 +2,7 @@
 #define ENCFS_HELPER_H
 
 #include<stdlib.h>
+#include<stdint.h>
 #include"sm9.h"
 
 struct crypto {

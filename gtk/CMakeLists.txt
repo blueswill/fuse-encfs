@@ -1,5 +1,5 @@
 include(${CMAKE_SOURCE_DIR}/cmake/GResources.cmake)
-find_package(PkgConfig REQUIRED)
+
 PKG_CHECK_MODULES(GTK3 REQUIRED gtk+-3.0)
 PKG_CHECK_MODULES(UDISKS2 REQUIRED udisks2)
 
@@ -19,4 +19,4 @@ add_executable(encfs-gtk
     ${GLIB_RESOURCE_OUTPUT}
     )
 
-target_link_libraries(encfs-gtk ${GTK3_LIBRARIES} ${UDISKS2_LIBRARIES})
+target_link_libraries(encfs-gtk encfs ${GTK3_LIBRARIES} ${UDISKS2_LIBRARIES})

@@ -15,6 +15,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(MIRACL_DIRECTORY ${PROJECT_SOURCE_DIR}/third_party/MIRACL)
 
 add_definitions(${GLIB_CFLAGS_OTHER})
+add_definitions(-DFUSE_USE_VERSION=31)
 include_directories(include ${GLIB_INCLUDE_DIRS})
 link_libraries(${GLIB_LIBRARIES})
 
