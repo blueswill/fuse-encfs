@@ -85,7 +85,7 @@
       </object>
       <packing>
         <property name="left_attach">0</property>
-        <property name="top_attach">0</property>
+        <property name="top_attach">2</property>
       </packing>
     </child>
     <child>
@@ -99,6 +99,84 @@
         <property name="hexpand">True</property>
         <property name="vexpand">False</property>
         <signal name="clicked" handler="create_button_clicked_cb" object="EncfsCreateGrid" swapped="yes"/>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">3</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="margin_bottom">12</property>
+        <property name="spacing">10</property>
+        <child>
+          <object class="GtkButton" id="master_sel_button">
+            <property name="label" translatable="yes">master file</property>
+            <property name="width_request">100</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <signal name="clicked" handler="master_sel_button_clicked_cb" object="EncfsCreateGrid" swapped="yes"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel" id="master_sel_label">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="label" translatable="yes">not selected</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+      <packing>
+        <property name="left_attach">0</property>
+        <property name="top_attach">0</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkBox">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="margin_bottom">24</property>
+        <property name="spacing">10</property>
+        <child>
+          <object class="GtkButton" id="id_dir_sel_button">
+            <property name="label" translatable="yes">ID directory</property>
+            <property name="width_request">100</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="receives_default">True</property>
+            <signal name="clicked" handler="id_dir_sel_button_clicked_cb" object="EncfsCreateGrid" swapped="yes"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel" id="id_dir_sel_label">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="label" translatable="yes">not selected</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
       </object>
       <packing>
         <property name="left_attach">0</property>

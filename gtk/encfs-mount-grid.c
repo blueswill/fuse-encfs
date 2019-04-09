@@ -15,16 +15,14 @@ struct _EncfsMountGrid {
     GtkGrid parent;
     GtkButton *mount_button;
     GtkFileChooserButton *priv_file;
-    
-    UDisksObject *target;
-};
-
-enum {
-    PROP_0,
-    PROP_TARGET
 };
 
 G_DEFINE_TYPE(EncfsMountGrid, encfs_mount_grid, GTK_TYPE_GRID);
+
+static UDisksObject *get_target(void) {
+    GApplication *app = g_application_get_default();
+    return encfs_application_get_selected(ENCFS_APPLICATION(app));
+}
 
 static gboolean mount_target(gpointer userdata) {
     gchar *tempdir = userdata;
@@ -105,7 +103,7 @@ static int do_mount(int blkfd, struct crypto *crypto) {
 static void check_mount_satisfied(EncfsMountGrid *self) {
     GFile *priv = gtk_file_chooser_get_file(GTK_FILE_CHOOSER(self->priv_file));
     gboolean ret = FALSE;
-    if (priv && self->target)
+    if (priv && get_target())
         ret = TRUE;
     if (priv)
         g_object_unref(priv);
@@ -130,7 +128,7 @@ static void show_error_dialog(GtkWindow *win, const char *format, ...) {
 static void mount_button_clicked_cb(EncfsMountGrid *self) {
     int blkfd = -1, cryptofd = -1;
     gchar *priv_file = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(self->priv_file));
-    UDisksBlock *blk = udisks_object_peek_block(self->target);
+    UDisksBlock *blk = udisks_object_peek_block(UDISKS_OBJECT(get_target()));
     GtkWindow *win = GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(self)));
     struct crypto *crypto = NULL;
     GError *err = NULL;
@@ -184,40 +182,19 @@ static void priv_file_file_set_cb(EncfsMountGrid *self) {
     check_mount_satisfied(self);
 }
 
-static UDisksObject *encfs_mount_grid_get_target(EncfsMountGrid *self) {
-    g_return_val_if_fail(ENCFS_IS_MOUNT_GRID(self), NULL);
-    return self->target;
+static void on_usb_sel_changed(GtkWidget *widget, GParamSpec *spec,
+                               gpointer userdata) {
+    (void)widget;
+    (void)spec;
+    check_mount_satisfied(ENCFS_MOUNT_GRID(userdata));
 }
 
-static void encfs_mount_grid_get_property(GObject *obj,
-                                          guint prop_id,
-                                          GValue *value,
-                                          GParamSpec *pspec) {
-    EncfsMountGrid *self = ENCFS_MOUNT_GRID(obj);
-    switch (prop_id) {
-        case PROP_TARGET:
-            g_value_set_object(value, encfs_mount_grid_get_target(self));
-            break;
-        default:
-            G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, prop_id, pspec);
-            break;
-    }
-}
-
-static void encfs_mount_grid_set_property(GObject *obj,
-                                          guint prop_id,
-                                          const GValue *value,
-                                          GParamSpec *pspec) {
-    EncfsMountGrid *self = ENCFS_MOUNT_GRID(obj);
-    switch (prop_id) {
-        case PROP_TARGET:
-            self->target = UDISKS_OBJECT(g_value_dup_object(value));
-            check_mount_satisfied(self);
-            break;
-        default:
-            G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, prop_id, pspec);
-            break;
-    }
+static void encfs_mount_grid_constructed(GObject *object) {
+    EncfsMountGrid *self = ENCFS_MOUNT_GRID(object);
+    gtk_widget_set_sensitive(GTK_WIDGET(self->mount_button), FALSE);
+    EncfsApplication *app = ENCFS_APPLICATION(g_application_get_default());
+    g_signal_connect(app, "notify::selected-object",
+                     G_CALLBACK(on_usb_sel_changed), self);
 }
 
 static void encfs_mount_grid_class_init(EncfsMountGridClass *klass) {
@@ -228,17 +205,7 @@ static void encfs_mount_grid_class_init(EncfsMountGridClass *klass) {
     gtk_widget_class_bind_template_child(parent, EncfsMountGrid, priv_file);
     gtk_widget_class_bind_template_callback(parent, mount_button_clicked_cb);
     gtk_widget_class_bind_template_callback(parent, priv_file_file_set_cb);
-    object_class->get_property = encfs_mount_grid_get_property;
-    object_class->set_property = encfs_mount_grid_set_property;
-    g_object_class_install_property(object_class,
-                                    PROP_TARGET,
-                                    g_param_spec_object("target",
-                                                        "Target device",
-                                                        "target device to use",
-                                                        UDISKS_TYPE_OBJECT,
-                                                        G_PARAM_READABLE |
-                                                        G_PARAM_WRITABLE |
-                                                        G_PARAM_STATIC_STRINGS));
+    object_class->constructed = encfs_mount_grid_constructed;
 }
 
 static void encfs_mount_grid_init(EncfsMountGrid *grid) {
