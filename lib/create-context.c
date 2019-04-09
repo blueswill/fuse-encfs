@@ -8,7 +8,7 @@
 #include<sys/stat.h>
 #include<stdint.h>
 #include<linux/fs.h>
-#include<stropts.h>
+#include<sys/ioctl.h>
 #include"sm9.h"
 #include"sm4.h"
 #include"create-context.h"

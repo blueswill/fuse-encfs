@@ -3,7 +3,7 @@
 #include<stdarg.h>
 #include<pthread.h>
 #include<stdint.h>
-#include<stropts.h>
+#include<sys/ioctl.h>
 #include<sys/mman.h>
 #include<sys/types.h>
 #include<linux/fs.h>
