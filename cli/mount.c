@@ -51,6 +51,7 @@ struct mount_context *get_mount_context(struct fuse_args *fuse_args,
         goto end;
     }
     ctx = mount_context_new(blkfd, crypto);
+    crypto_free(crypto);
 end:
     if (blkfd >= 0)
         close(blkfd);
@@ -76,7 +77,6 @@ int main(int argc, char **argv) {
     ctx = get_mount_context(&args, &user_args);
     sm9_release();
     if (ctx)
-        ret = mount_context_mount_raw(mount_context_copy(ctx), &args);
-    mount_context_free(ctx);
+        ret = mount_context_mount_raw(ctx, &args);
     return ret;
 }

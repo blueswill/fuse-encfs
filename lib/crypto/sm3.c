@@ -116,7 +116,7 @@ int sm3(const char *str, size_t str_len, uint8_t *outb) {
         if (v != iv)
             g_free(v);
         if (!vt)
-            return -1;
+            goto end;
         v = vt;
     }
     for (i = 0; i < 8; ++i) {
@@ -125,5 +125,7 @@ int sm3(const char *str, size_t str_len, uint8_t *outb) {
     memmove(outb, v, sizeof(iv));
     if (v != iv)
         g_free(v);
+end:
+    g_free(buf);
     return 0;
 }

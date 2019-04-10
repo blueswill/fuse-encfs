@@ -92,6 +92,7 @@ end:
     release_big(zero);
     release_big(t2);
     release_big(rem);
+    release_big(h1);
     return ret;
 }
 
@@ -181,6 +182,7 @@ static int handle_block(const struct _string *kdf, const struct _string *data,
     if (sm4_cbc(k1.buf, (void *)data->buf, data->size,
                 c2str->buf, &c2str->size, encrypt) < 0) {
         g_free(c2str->buf);
+        c2str->buf = NULL;
         return -1;
     }
     *k2str = k2;

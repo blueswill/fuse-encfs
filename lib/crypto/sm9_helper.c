@@ -116,6 +116,8 @@ int write_epoint(epoint *e, struct _string *s) {
     r += write_big_buf(y, buf + r, size - r);
     s->buf = buf;
     s->size = r;
+    release_big(x);
+    release_big(y);
     return 0;
 }
 
