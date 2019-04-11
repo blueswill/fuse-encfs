@@ -29,8 +29,8 @@ static int check_header(struct mount_context *ctx,
                 outlen == ctx->keysize) {
                 memmove(ctx->key, out, ctx->keysize);
                 ctx->start_offset = sizeof(struct block_header) * (ptr - header + 1);
-                free(out);
-                free(cipher);
+                g_free(out);
+                ciphertext_free(cipher);
                 return 0;
             }
             ciphertext_free(cipher);
@@ -71,8 +71,8 @@ void mount_context_free(struct mount_context *ctx) {
     if (ctx) {
         g_free(ctx->key);
         close(ctx->blkfd);
-        g_free(ctx);
         pthread_mutex_destroy(&ctx->mutex);
+        g_free(ctx);
     }
 }
 
@@ -116,11 +116,10 @@ int mount_context_mountv(struct mount_context *ctx, const char *mount_point,
     args[argc + 1] = g_strdup(mount_point);
     args[argc + 2] = NULL;
     struct fuse_args fuse_args = FUSE_ARGS_INIT(argc + 2, args);
-    struct mount_context *new = mount_context_copy(ctx);
-    if ((ret = mount_context_mount_raw(new, &fuse_args)))
-        mount_context_free(new);
+    ret = mount_context_mount_raw(ctx, &fuse_args);
     fuse_opt_free_args(&fuse_args);
     g_strfreev(args);
+    return ret;
 }
 
 int mount_context_mount(struct mount_context *ctx, const char *mount_point,

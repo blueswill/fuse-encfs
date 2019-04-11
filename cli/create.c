@@ -97,6 +97,7 @@ int main(int argc, char **argv) {
     char **id_list;
     struct create_context *args = check_args(argc, argv, &id_list);
     int ret = create_context_create(args, (void *)id_list);
+    create_context_free(args);
     g_strfreev(id_list);
     sm9_release();
     return ret;

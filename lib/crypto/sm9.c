@@ -148,6 +148,7 @@ size_t master_key_pair_write(const struct master_key_pair *pair, char *buf, size
     g_free(s.buf);
     buf[size++] = t.size;
     memmove(buf + size, t.buf, t.size);
+    g_free(t.buf);
     size += t.size;
     buf[size] = pair->type;
     return size + 1;

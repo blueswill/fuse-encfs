@@ -39,7 +39,7 @@ static int check_id_dir(struct create_context *args) {
             else {
                 gchar *str = g_strdup(e->d_name);
                 str[strlen(str) - sizeof(PRIVATE_KEY_SUFFIX)] = '\0';
-                g_hash_table_insert(id_hash, str, str);
+                g_hash_table_insert(id_hash, str, NULL);
             }
         }
     }
@@ -65,7 +65,7 @@ static void create_private_key_file(const char *id, struct create_context *args)
 static void add_id(const char *id, struct create_context *args) {
     char *str = g_strdup(id);
     GHashTable *id_hash = args->id_hash;
-    if (g_hash_table_insert(id_hash, str, str)) {
+    if (g_hash_table_insert(id_hash, str, NULL)) {
         create_private_key_file(id, args);
     }
 }
@@ -117,6 +117,7 @@ void create_context_free(struct create_context *args) {
         g_hash_table_remove_all(args->id_hash);
         g_hash_table_unref(args->id_hash);
     }
+    master_key_pair_free(args->pair);
     g_free(args);
 }
 
