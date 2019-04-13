@@ -2,6 +2,7 @@
 #include"encfs-mount-grid.h"
 #include"encfs-create-grid.h"
 #include"encfs-mount-grid.h"
+#include"encfs-monitor-grid.h"
 
 enum {
     PROP_0,
@@ -267,6 +268,7 @@ static void encfs_window_finalize(GObject *obj) {
 static void encfs_window_class_init(EncfsWindowClass *klass) {
     g_type_ensure(ENCFS_TYPE_MOUNT_GRID);
     g_type_ensure(ENCFS_TYPE_CREATE_GRID);
+    g_type_ensure(ENCFS_TYPE_MONITOR_GRID);
     gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(klass), "/swhc/encfs/encfs-window.ui");
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, usb_sel_button);
     gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(klass), EncfsWindow, mode_menu_button);

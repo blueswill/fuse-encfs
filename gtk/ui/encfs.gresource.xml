@@ -4,6 +4,7 @@
         <file preprocess="xml-stripblanks">create-grid.ui</file>
         <file preprocess="xml-stripblanks">encfs-window.ui</file>
         <file preprocess="xml-stripblanks">mount-grid.ui</file>
+        <file preprocess="xml-stripblanks">monitor-grid.ui</file>
         <file preprocess="xml-stripblanks">menu.ui</file>
     </gresource>
 </gresources>

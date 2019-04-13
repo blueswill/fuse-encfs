@@ -101,6 +101,14 @@
                 <property name="position">1</property>
               </packing>
             </child>
+            <child>
+              <object class="EncfsMonitorGrid" id="monitor_grid">
+                            </object>
+              <packing>
+                <property name="name">monitor</property>
+                <property name="title" translatable="yes">monitor device</property>
+              </packing>
+            </child>
           </object>
           <packing>
             <property name="left_attach">0</property>

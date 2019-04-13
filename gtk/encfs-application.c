@@ -18,6 +18,13 @@ enum {
     NUM_PROP
 };
 
+enum {
+    SIGNAL_MOUNT,
+    NUM_SIGNAL
+};
+
+static guint app_signals[NUM_SIGNAL];
+
 G_DEFINE_TYPE(EncfsApplication, encfs_application, GTK_TYPE_APPLICATION);
 
 static void encfs_application_ensure_client(EncfsApplication *app) {
@@ -124,6 +131,9 @@ static void encfs_application_class_init(EncfsApplicationClass *self) {
                                                         G_PARAM_READABLE |
                                                         G_PARAM_WRITABLE |
                                                         G_PARAM_STATIC_STRINGS));
+    app_signals[SIGNAL_MOUNT] = g_signal_new("mounted", G_TYPE_FROM_CLASS(self),
+                                             G_SIGNAL_RUN_LAST |G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+                                             0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
 }
 
 static void encfs_application_init(EncfsApplication *self) {

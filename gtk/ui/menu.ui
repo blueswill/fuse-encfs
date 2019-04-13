@@ -12,6 +12,11 @@
                 <attribute name="action">win.mode</attribute>
                 <attribute name="target">mount</attribute>
             </item>
+            <item>
+                <attribute name="label" translatable="yes">Monitor mode</attribute>
+                <attribute name="action">win.mode</attribute>
+                <attribute name="target">monitor</attribute>
+            </item>
         </section>
     </menu>
     <menu id="create_menu">

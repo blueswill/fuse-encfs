@@ -15,6 +15,7 @@ add_executable(encfs-gtk
     encfs-application.c
     encfs-create-grid.c
     encfs-mount-grid.c
+    encfs-monitor-grid.c
     encfs-window.c
     ${GLIB_RESOURCE_OUTPUT}
     )

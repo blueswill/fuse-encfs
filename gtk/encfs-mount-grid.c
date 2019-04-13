@@ -65,18 +65,45 @@ end:
         g_object_unref(fd_list);
 }
 
+struct wait_fork_struct {
+    pid_t pid;
+    gchar *mount_point;
+};
+
+static gpointer wait_fork(gpointer userdata) {
+    struct wait_fork_struct *st = userdata;
+    int wstate;
+    if (waitpid(st->pid, &wstate, WNOHANG) < 0)
+        g_warning(g_strerror(errno));
+    else if (WIFEXITED(wstate) && !WEXITSTATUS(wstate)) {
+        GApplication *app = g_application_get_default();
+        g_signal_emit_by_name(app, "mount", st->mount_point);
+    }
+    g_free(st->mount_point);
+    g_free(st);
+    return NULL;
+}
+
 static void do_mount_fork(struct mount_context *ctx, const char *mount_point,
                           int argc, ...) {
     pid_t pid = fork();
     if (pid < 0)
         g_warning("get sub process error: %s", g_strerror(errno));
     else if (!pid) {
-        setsid();
         va_list ap;
+        int ret;
+        setsid();
         va_start(ap, argc);
-        mount_context_mountv(ctx, mount_point, argc, ap);
+        ret = mount_context_mountv(ctx, mount_point, argc, ap);
         va_end(ap);
-        exit(EXIT_FAILURE);
+        exit(ret);
+    }
+    else {
+        struct wait_fork_struct *st = g_new(struct wait_fork_struct, 1);
+        st->pid = pid;
+        st->mount_point = g_strdup(mount_point);
+        GThread *thread = g_thread_new(NULL, wait_fork, st);
+        g_thread_unref(thread);
     }
 }
 
