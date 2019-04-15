@@ -77,7 +77,7 @@ static gpointer wait_fork(gpointer userdata) {
         g_warning(g_strerror(errno));
     else if (WIFEXITED(wstate) && !WEXITSTATUS(wstate)) {
         GApplication *app = g_application_get_default();
-        g_signal_emit_by_name(app, "mount", st->mount_point);
+        g_signal_emit_by_name(ENCFS_APPLICATION(app), "mounted", st->mount_point);
     }
     g_free(st->mount_point);
     g_free(st);
