@@ -3,6 +3,7 @@
 #include"encfs-create-grid.h"
 #include"encfs-mount-grid.h"
 #include"encfs-monitor-grid.h"
+#include"utility.h"
 
 enum {
     PROP_0,
@@ -135,36 +136,6 @@ out:
     return ret;
 }
 
-static gchar *unfused_path(const gchar *path) {
-    gchar *ret;
-    GFile *file;
-    gchar *uri;
-    const gchar *home;
-
-    file = g_file_new_for_path(path);
-    uri = g_file_get_uri(file);
-    if (g_str_has_prefix(uri, "file:"))
-        ret = g_strdup(path);
-    else
-        ret = g_uri_unescape_string(uri, NULL);
-    g_object_unref(file);
-    g_free(uri);
-    home = g_get_home_dir();
-    if (g_str_has_prefix(ret, home)) {
-        size_t home_len = strlen(home);
-        if (home_len > 2) {
-            if (home[home_len - 1] == '/')
-                --home_len;
-            if (ret[home_len] == '/') {
-                gchar *tmp = ret;
-                ret = g_strdup_printf("~/%s", ret + home_len + 1);
-                g_free(tmp);
-            }
-        }
-    }
-    return ret;
-}
-
 static void update_block(gpointer data, gpointer userdata) {
     EncfsWindow *self = ENCFS_WINDOW(userdata);
     UDisksObject *obj = UDISKS_OBJECT(data);
@@ -172,15 +143,15 @@ static void update_block(gpointer data, gpointer userdata) {
     UDisksLoop *loop = udisks_object_peek_loop(obj);
     EncfsApplication *app = ENCFS_APPLICATION(g_application_get_default());
     UDisksClient *client = encfs_application_get_client(app);
-    UDisksObjectInfo *info = udisks_client_get_object_info(client, obj);
+    g_autoptr(UDisksObjectInfo) info = udisks_client_get_object_info(client, obj);
     guint64 size = udisks_block_get_size(block);
-    gchar *size_str = udisks_client_get_size_for_display(client, size, FALSE, FALSE);
+    g_autofree gchar *size_str = udisks_client_get_size_for_display(client, size, FALSE, FALSE);
     const gchar *loop_backing_file = loop ? udisks_loop_get_backing_file(loop) : NULL;
     const gchar *name = udisks_object_info_get_name(info);
     gint menu_size;
-    GVariant *var;
-    gchar *action_str;
-    gchar *id;
+    g_autoptr(GVariant) var = NULL;
+    g_autofree gchar *action_str = NULL;
+    g_autofree gchar *id = NULL;
     if (loop_backing_file)
         id = unfused_path(loop_backing_file);
     else
@@ -189,10 +160,6 @@ static void update_block(gpointer data, gpointer userdata) {
     var = g_variant_new_int32(menu_size);
     action_str = g_action_print_detailed_name("win.change-usb", var);
     g_menu_append(self->usb_menu, id, action_str);
-    g_free(id);
-    g_free(action_str);
-    g_variant_unref(var);
-    g_free(size_str);
     self->objects = g_list_prepend(self->objects, g_object_ref(data));
 }
 

@@ -41,7 +41,7 @@ static int check_header(struct mount_context *ctx,
     }
 }
 
-struct mount_context *mount_context_new(int blkfd, struct crypto *crypto) {
+struct mount_context *mount_context_new(int blkfd, struct crypto *crypto, const char *target) {
     int ret = -1;
     struct block_header *header = MAP_FAILED;
     struct mount_context *ctx = g_new(struct mount_context, 1);
@@ -49,6 +49,7 @@ struct mount_context *mount_context_new(int blkfd, struct crypto *crypto) {
     ctx->keysize = SM4_XTS_KEY_BYTE_SIZE;
     ctx->block_size = SM4_BLOCK_BYTE_SIZE;
     ctx->key = g_new(uint8_t, ctx->keysize);
+    ctx->target = g_strdup(target ? target : "");
     pthread_mutex_init(&ctx->mutex, NULL);
     ioctl(blkfd, BLKGETSIZE64, &ctx->block_size);
     if ((header = mmap(NULL, ctx->block_size, PROT_READ,
@@ -70,6 +71,7 @@ end:
 void mount_context_free(struct mount_context *ctx) {
     if (ctx) {
         g_free(ctx->key);
+        g_free(ctx->target);
         close(ctx->blkfd);
         pthread_mutex_destroy(&ctx->mutex);
         g_free(ctx);

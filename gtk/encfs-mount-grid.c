@@ -10,6 +10,7 @@
 #include"encfs_helper.h"
 #include"mount-context.h"
 #include"config.h"
+#include"utility.h"
 
 struct _EncfsMountGrid {
     GtkGrid parent;
@@ -107,7 +108,7 @@ static void do_mount_fork(struct mount_context *ctx, const char *mount_point,
     }
 }
 
-static int do_mount(int blkfd, struct crypto *crypto) {
+static int do_mount(int blkfd, struct crypto *crypto, const gchar *target) {
     const gchar *cachedir = g_get_user_cache_dir();
     gchar *templ = g_strdup_printf("%s/%s/XXXXXX", cachedir, PROJECT_NAME);
     gchar *tempdir = g_mkdtemp(templ);
@@ -116,7 +117,7 @@ static int do_mount(int blkfd, struct crypto *crypto) {
     gchar *options = g_strdup_printf("uid=%d,gid=%d,allow_other", uid, gid);
     if (!tempdir)
         return -1;
-    struct mount_context *ctx = mount_context_new(blkfd, crypto);
+    struct mount_context *ctx = mount_context_new(blkfd, crypto, target);
     if (!ctx)
         return -1;
     g_info("mount point is %s", tempdir);
@@ -155,10 +156,17 @@ static void show_error_dialog(GtkWindow *win, const char *format, ...) {
 static void mount_button_clicked_cb(EncfsMountGrid *self) {
     int blkfd = -1, cryptofd = -1;
     gchar *priv_file = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(self->priv_file));
-    UDisksBlock *blk = udisks_object_peek_block(UDISKS_OBJECT(get_target()));
+    GApplication *app = g_application_get_default();
+    UDisksClient *client = UDISKS_CLIENT(encfs_application_get_client(ENCFS_APPLICATION(app)));
+    UDisksObject *obj = get_target();
+    if (!obj)
+        return;
+    UDisksBlock *blk = udisks_object_peek_block(obj);
+    UDisksLoop *loop = udisks_object_peek_loop(obj);
+    UDisksObjectInfo *info = udisks_client_get_object_info(client, obj);
     GtkWindow *win = GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(self)));
     struct crypto *crypto = NULL;
-    GError *err = NULL;
+    g_autoptr(GError) err = NULL;
     GVariantDict dict;
     GVariant *out_index, *options;
     GUnixFDList *out_list;
@@ -179,7 +187,6 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
         g_object_unref(out_list);
         if (blkfd == -1) {
             g_warning(err->message);
-            g_error_free(err);
             goto end;
         }
     }
@@ -194,7 +201,14 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
         show_error_dialog(win, "read %s error", priv_file);
         goto end;
     }
-    if (do_mount(blkfd, crypto) < 0)
+    const gchar *name = udisks_object_info_get_name(info);
+    const gchar *loop_backing_file = loop ? udisks_loop_get_backing_file(loop) : NULL;
+    g_autofree gchar *target = NULL;
+    if (loop_backing_file)
+        target = unfused_path(loop_backing_file);
+    else
+        target = g_strdup(name);
+    if (do_mount(blkfd, crypto, target) < 0)
         show_error_dialog(win, "mount error");
 end:
     if (blkfd >= 0)

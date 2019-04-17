@@ -1,4 +1,6 @@
 #include<udisks/udisks.h>
+#include<errno.h>
+#include<sys/mount.h>
 #include"encfs-monitor-grid.h"
 #include"encfs-application.h"
 #include"config.h"
@@ -27,7 +29,7 @@ static gboolean model_foreach_cb(GtkTreeModel *model, GtkTreePath *path,
     (void)path;
     gtk_tree_model_get(model, iter, COLUMN_DIR, &prefix, -1);
     g_autofree gchar *target = g_build_path(G_DIR_SEPARATOR_S, prefix, "target", NULL);
-    g_autofree gpointer found = g_hash_table_lookup(self->lo_paths, target);
+    gpointer found = g_hash_table_lookup(self->lo_paths, target);
     gtk_list_store_set(GTK_LIST_STORE(model), iter, COLUMN_LOOP_POINTER, found, -1);
     return FALSE;
 }
@@ -67,12 +69,7 @@ static void update_path(EncfsMonitorGrid *self, const gchar *path) {
     g_autoptr(GFile) f = g_file_new_for_path(path);
     g_autoptr(GFile) target = g_file_new_build_filename(path, "target", NULL);
     g_autoptr(GFile) attr = g_file_new_build_filename(path, "attributes", NULL);
-    g_autoptr(GMount) mount = g_file_find_enclosing_mount(f, NULL, &err);
-    if (err) {
-        g_warning(err->message);
-        return;
-    }
-    if (mount && g_file_query_exists(target, NULL) && g_file_query_exists(attr, NULL)) {
+    if (g_file_query_exists(target, NULL) && g_file_query_exists(attr, NULL)) {
         g_autoptr(GBytes) bytes = g_file_load_bytes(attr, NULL, NULL, &err);
         if (err) {
             g_warning(err->message);
@@ -86,6 +83,7 @@ static void update_path(EncfsMonitorGrid *self, const gchar *path) {
                            COLUMN_LOOP_POINTER, NULL,
                            COLUMN_DIR, path,
                            -1);
+        g_info("add path %s", path);
     }
 }
 
@@ -106,24 +104,6 @@ static void update_monitor_list(EncfsMonitorGrid *self) {
         update_path(self, path);
     }
     update_loop_paths(self, client);
-}
-
-static void unmount_cb(GObject *obj, GAsyncResult *res, gpointer userdata) {
-    GtkTreeRowReference *ref = userdata;
-    GtkTreeModel *model = gtk_tree_row_reference_get_model(ref);
-    GtkTreePath *path = gtk_tree_row_reference_get_path(ref);
-    GMount *mount = G_MOUNT(obj);
-    g_autoptr(GError) err = NULL;
-    if (!g_mount_unmount_with_operation_finish(mount, res, &err)) {
-        g_warning(err->message);
-        return;
-    }
-    g_autoptr(GFile) root = g_mount_get_root(mount);
-    if (!g_file_delete(root, NULL, &err))
-        g_warning(err->message);
-    GtkTreeIter iter;
-    if (gtk_tree_model_get_iter(model, &iter, path))
-        gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
 }
 
 static void on_unmount_button_clicked(GtkTreeView *monitor_list) {
@@ -154,26 +134,26 @@ static void on_unmount_button_clicked(GtkTreeView *monitor_list) {
                     continue;
                 }
             }
-            g_autoptr(GError) err = NULL;
-            g_autoptr(GFile) d = g_file_new_for_path(dir);
-            g_autoptr(GMount) mount = g_file_find_enclosing_mount(d, NULL, &err);
-            if (err) {
-                g_warning(err->message);
+            if (umount2(dir, 0) < 0) {
+                g_warning("umount %s error: %s", dir, g_strerror(errno));
                 continue;
             }
-            g_autoptr(GMountOperation) opers = g_mount_operation_new();
-            g_mount_unmount_with_operation(mount, G_MOUNT_UNMOUNT_NONE,opers, NULL, unmount_cb, l->data);
+            unlink(dir);
+            gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
         }
     }
 }
 
 static void on_refresh_button_clicked(EncfsMonitorGrid *self) {
+    GtkTreeModel *model = gtk_tree_view_get_model(self->monitor_list);
+    gtk_list_store_clear(GTK_LIST_STORE(model));
     update_monitor_list(self);
 }
 
 static void on_monitor_list_row_activated(GtkTreeView *monitor_list, GtkTreePath *path,
-                                          GtkTreeViewColumn *column, GtkButton *button) {
-    gtk_widget_set_sensitive(GTK_WIDGET(button), TRUE);
+                                          GtkTreeViewColumn *column, EncfsMonitorGrid *self) {
+    g_debug("%s called", __func__);
+    gtk_widget_set_sensitive(GTK_WIDGET(self->unmount_button), TRUE);
 }
 
 static void encfs_monitor_grid_constructed(GObject *obj) {
@@ -187,10 +167,11 @@ static void encfs_monitor_grid_constructed(GObject *obj) {
                                              G_TYPE_POINTER,
                                              G_TYPE_STRING);
     gtk_tree_view_set_model(self->monitor_list, GTK_TREE_MODEL(store));
-    column = gtk_tree_view_column_new_with_attributes("name", gtk_cell_renderer_text_new(),
+    column = gtk_tree_view_column_new_with_attributes("target", gtk_cell_renderer_text_new(),
                                                       "text", COLUMN_NICK,
                                                       NULL);
     gtk_tree_view_append_column(self->monitor_list, column);
+    gtk_tree_view_set_activate_on_single_click(self->monitor_list, TRUE);
     gtk_widget_set_sensitive(GTK_WIDGET(self->unmount_button), FALSE);
     g_idle_add(G_SOURCE_FUNC(update_monitor_list), self);
     GApplication *app = g_application_get_default();

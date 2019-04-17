@@ -8,13 +8,15 @@
 struct user_args {
     const char *block_device;
     const char *pkey_file;
+    const char *target;
     int show_help;
 };
 
 void usage(struct fuse_args *args) {
     fputs("usage:\n", stderr);
-    fputs("    --block-device=[device]  set target block device.\n", stderr);
-    fputs("    --pkey=[pkeyfile]        private key for block device.\n", stderr);
+    fputs("    --block-device=DEVICE    set target block device.\n", stderr);
+    fputs("    --pkey=PKEYFILE          private key for block device.\n", stderr);
+    fputs("    --target=NAME            set a meaningful name.\n", stderr);
     fuse_opt_add_arg(args, "--help");
     fuse_main(args->argc, args->argv, NULL, NULL);
 }
@@ -50,7 +52,7 @@ struct mount_context *get_mount_context(struct fuse_args *fuse_args,
         fputs("read pkey file error\n", stderr);
         goto end;
     }
-    ctx = mount_context_new(blkfd, crypto);
+    ctx = mount_context_new(blkfd, crypto, user_args->target);
     crypto_free(crypto);
 end:
     if (blkfd >= 0)
@@ -68,6 +70,7 @@ int main(int argc, char **argv) {
     const struct fuse_opt option_spec[] = {
         OPTION("--block-device=%s", block_device),
         OPTION("--pkey=%s", pkey_file),
+        OPTION("--target=%s", target),
         FUSE_OPT_END
     };
     setlocale(LC_ALL, "");

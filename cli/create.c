@@ -15,6 +15,7 @@ static struct option opts[] = {
     {"block-device", required_argument, NULL, 'b'},
     {"id", required_argument, NULL, 't'},
     {"id-directory", required_argument, NULL, 'd'},
+    {"generate", no_argument, NULL, 'g'},
     {"help", no_argument, NULL, 'h'},
     {NULL, 0, NULL, 0}
 };
@@ -25,14 +26,18 @@ static void usage(void) {
     fputs("    -b, --block-device=DEVICE            specify target block device\n", stderr);
     fputs("    -t, --id=ID1[,ID2]...                only ID1[,ID2]... can access data in block device\n", stderr);
     fputs("    -d, --id-directory=IDDIR             store ID's private key in IDDIR\n", stderr);
+    fputs("    -g, --generate                       generate new master pair\n", stderr);
     fputs("    -h, --help                           show this help message\n", stderr);
 }
 
 static struct create_context *check_args(int argc, char **argv, char ***id_list) {
+    struct master_key_pair *pair;
     const char *master, *blk, *ids, *id_dir;
+    g_autofree gchar *masterfile = NULL;
+    int generate = 0;
     opterr = 0;
     int ind;
-    while ((ind = getopt_long(argc, argv, "m:b:t:d:h", opts, NULL)) != -1) {
+    while ((ind = getopt_long(argc, argv, "gm:b:t:d:h", opts, NULL)) != -1) {
         switch (ind) {
             case 'h':
                 usage();
@@ -48,6 +53,9 @@ static struct create_context *check_args(int argc, char **argv, char ***id_list)
                 break;
             case 'd':
                 id_dir = optarg;
+                break;
+            case 'g':
+                generate = 1;
                 break;
             case '?':
                 usage();
@@ -65,27 +73,41 @@ static struct create_context *check_args(int argc, char **argv, char ***id_list)
     }
     int iddirfd = open(id_dir, O_RDONLY);
     if (iddirfd < 0) {
-        fprintf(stderr, "open %s error: %s\n", id_dir, strerror(errno));
-        exit(EXIT_FAILURE);
+        if (errno == ENOENT) {
+            if (g_mkdir_with_parents(id_dir, S_IRWXU | S_IRWXG) < 0) {
+                fprintf(stderr, "create %s error: %s\n", id_dir, strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+        }
+        else {
+            fprintf(stderr, "open %s error: %s\n", id_dir, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
     }
-    int masterfd = open(master, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
+    masterfile = g_strdup(master);
+    if (!g_str_has_suffix(masterfile, MASTER_KEY_PAIR_SUFFIX)) {
+        gchar *s = g_strconcat(masterfile, MASTER_KEY_PAIR_SUFFIX, NULL);
+        g_free(masterfile);
+        masterfile = s;
+    }
+    int masterfd = open(masterfile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
     if (masterfd < 0) {
         fprintf(stderr, "open %s error: %s\n", master, strerror(errno));
         exit(EXIT_FAILURE);
     }
-    struct master_key_pair *pair = master_key_pair_read_file(masterfd);
-    int regenerate = 0;
-    if (!pair) {
-        fputs("master key pair read failed\n", stderr);
-        fputs("regenerate master key pair\n", stderr);
-        regenerate = 1;
+    if (generate)
         pair = generate_master_key_pair(TYPE_ENCRYPT);
-        if (master_key_pair_write_file(pair, masterfd) < 0) {
-            perror("write master key pair error");
-            exit(EXIT_FAILURE);
-        }
+    else
+        pair = master_key_pair_read_file(masterfd);
+    if (!pair) {
+        fputs("failed to get master key pair\n", stderr);
+        exit(EXIT_FAILURE);
     }
-    struct create_context *args = create_context_new(blkfd, iddirfd, pair, regenerate);
+    if (generate && master_key_pair_write_file(pair, masterfd) < 0) {
+        perror("write master key pair error");
+        exit(EXIT_FAILURE);
+    }
+    struct create_context *args = create_context_new(blkfd, iddirfd, pair, generate);
     if (!args)
         exit(EXIT_FAILURE);
     *id_list = g_strsplit(ids, ",", -1);

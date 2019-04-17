@@ -23,7 +23,7 @@
             <property name="can_focus">True</property>
             <property name="vexpand">True</property>
             <property name="headers_visible">False</property>
-            <signal name="row-activated" handler="on_monitor_list_row_activated" object="unmount_button" swapped="no"/>
+            <signal name="row-activated" handler="on_monitor_list_row_activated" object="EncfsMonitorGrid" swapped="no"/>
             <child internal-child="selection">
               <object class="GtkTreeSelection"/>
             </child>

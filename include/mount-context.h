@@ -10,11 +10,12 @@ struct mount_context {
     int blkfd;
     uint64_t block_size;
     off_t start_offset;
+    char *target;
     pthread_mutex_t mutex;
 };
 
 
-struct mount_context *mount_context_new(int blkfd, struct crypto *crypto);
+struct mount_context *mount_context_new(int blkfd, struct crypto *crypto, const char *target);
 void mount_context_free(struct mount_context *ctx);
 struct mount_context *mount_context_copy(struct mount_context *ctx);
 

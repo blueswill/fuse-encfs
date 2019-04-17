@@ -33,6 +33,11 @@ int encfs_getattr(const char *path, struct stat *st, struct fuse_file_info *info
         st->st_mode = S_IFREG | 0660;
         st->st_nlink = 1;
     }
+    else if (!strcmp(path + 1, "attributes")) {
+        st->st_mode = S_IFREG | 0440;
+        st->st_size = strlen(ctx->target);
+        st->st_nlink = 1;
+    }
     else
         return -ENOENT;
     return 0;
@@ -49,12 +54,13 @@ int encfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0, 0);
     filler(buf, "..", NULL, 0, 0);
     filler(buf, "target", NULL, 0, 0);
+    filler(buf, "attributes", NULL, 0, 0);
     return 0;
 }
 
 int encfs_open(const char *path, struct fuse_file_info *fi) {
     (void)fi;
-    if (strcmp(path, "/target"))
+    if (strcmp(path, "/") && strcmp(path, "/target") && strcmp(path, "/attributes"))
         return -ENOENT;
     return 0;
 }
@@ -175,21 +181,28 @@ int encfs_read(const char *path, char *buf, size_t size, off_t offset,
     int ret;
     struct mount_context *context = fuse_get_context()->private_data;
     (void)fi;
-    if (strcmp(path, "/target"))
-        return -ENOENT;
-    if (offset < 0)
-        return -EINVAL;
-    offset += context->start_offset;
-    if ((size_t)offset >= context->block_size)
-        return -EINVAL;
-    if (offset + size > context->block_size)
-        size = context->block_size - offset;
-    pthread_mutex_lock(&context->mutex);
-    if (__encfs_read(buf, size, offset) < 0) {
-        ret = -errno;
-        goto free_lock;
+    if (!strcmp(path, "/target")) {
+        if (offset < 0)
+            return -EINVAL;
+        offset += context->start_offset;
+        if ((size_t)offset >= context->block_size)
+            return -EINVAL;
+        if (offset + size > context->block_size)
+            size = context->block_size - offset;
+        pthread_mutex_lock(&context->mutex);
+        if (__encfs_read(buf, size, offset) < 0) {
+            ret = -errno;
+            goto free_lock;
+        }
+        ret = size;
     }
-    ret = size;
+    else if (!strcmp(path, "/attributes")) {
+        size_t len = strlen(context->target);
+        ret = (size < len ? size : len);
+        memmove(buf, context->target, ret);
+    }
+    else
+        return -ENOENT;
 free_lock:
     pthread_mutex_unlock(&context->mutex);
     return ret;
@@ -200,19 +213,23 @@ int encfs_write(const char *path, const char *buf, size_t size, off_t offset,
     int ret = 0;
     struct mount_context *context = fuse_get_context()->private_data;
     (void)fi;
-    if (strcmp(path, "/target"))
-        return -ENOENT;
-    if (offset < 0)
-        return -EINVAL;
-    offset += context->start_offset;
-    if (offset + size > context->block_size)
-        return -ENOSPC;
-    pthread_mutex_lock(&context->mutex);
-    if (__encfs_write(buf, size, offset) < 0) {
-        ret = -errno;
-        goto free_lock;
+    if (!strcmp(path, "/target")) {
+        if (offset < 0)
+            return -EINVAL;
+        offset += context->start_offset;
+        if (offset + size > context->block_size)
+            return -ENOSPC;
+        pthread_mutex_lock(&context->mutex);
+        if (__encfs_write(buf, size, offset) < 0) {
+            ret = -errno;
+            goto free_lock;
+        }
+        ret = size;
     }
-    ret = size;
+    else if (!strcmp(path, "/attributes"))
+        return -EPERM;
+    else
+        return -ENOENT;
 free_lock:
     pthread_mutex_unlock(&context->mutex);
     return ret;
