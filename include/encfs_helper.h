@@ -12,16 +12,17 @@ struct crypto {
 };
 
 struct block_header {
-    uint8_t header_flag;
+    uint16_t fs_flag;
     uint8_t header_number;
     uint8_t ciphertext[3][160];
-    uint8_t reserve[30];
+    uint8_t reserve[29];
 } __attribute__((packed));
 
-#define HEADER_CUR_TYPE 0x1
-#define HEADER_NXT_TYPE 0x2
-#define IS_HEADER(flag, type) ((flag) & (type))
-#define SET_FLAG(flag, type) ((flag) |= (type))
+#define FS_FLAG 0x9432
+#define FS_TYPE 0xfffe
+#define IS_HEADER(flag) (((flag) & FS_TYPE) == FS_FLAG)
+#define IS_HEADER_NEXT(flag) ((flag) & ~FS_TYPE)
+#define SET_HEADER_FLAG(flag, next) ((flag) = (FS_FLAG | ((next) & ~FS_TYPE)))
 
 #define BIT_MASK(n) ((1 << n) - 1)
 #define CEIL_OFFSET2(x, n) (~((x) - 1) & BIT_MASK(n))
@@ -36,6 +37,7 @@ int master_key_pair_write_file(struct master_key_pair *pair, int fd);
 
 struct crypto *crypto_new(struct master_key_pair *pair, const char *id);
 struct crypto *crypto_new_private_key(struct private_key *priv, const char *id);
+struct crypto *crypto_copy(struct crypto *crypto);
 void crypto_free(struct crypto *crypto);
 
 struct crypto *crypto_read_file(int fd);

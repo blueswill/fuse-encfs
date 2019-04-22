@@ -140,9 +140,7 @@ int create_context_create(struct create_context *args, const char **id_list) {
             add_id(*cur, args);
             ++cur;
         }
-        SET_FLAG(header.header_flag, HEADER_CUR_TYPE);
-        if (cur)
-            SET_FLAG(header.header_flag, HEADER_NXT_TYPE);
+        SET_HEADER_FLAG(header.fs_flag, !!cur);
         if (write(args->blkfd, &header, sizeof(header)) < 0) {
             return -1;
         }
