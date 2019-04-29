@@ -1,10 +1,10 @@
 #include"tpm-context.h"
 #include<tss2/tss2_tcti.h>
+#include<tss2/tss2_mu.h>
 #include<dlfcn.h>
 #include<stdio.h>
+#include<gio/gio.h>
 
-#define BUFFER_SIZE(type, field) (sizeof(((type *)NULL)->field))
-#define TPM2B_TYPE_INIT(type, field) { .size = BUFFER_SIZE(type, field) }
 #define TPMT_TK_CREATION_EMPTY_INIT { \
     .tag = 0, \
     .hierarchy = 0, \
@@ -15,12 +15,11 @@
     ({ \
      TSS2_RC _result = 0; \
      do { \
-     _result = (expression); \
+         _result = (expression); \
      } while ((_result & 0xffff) == TPM2_RC_RETRY); \
      _result; \
      })
 
-#define TPM2B_EMPTY_INIT { .size = 0 }
 #define TPM2B_SENSITIVE_CREATE_EMPTY_INIT { \
     .sensitive = { \
         .data.size = 0, \
@@ -47,20 +46,32 @@
     }, \
 }
 
-#define return_val(rval) do { \
+#define TPMS_AUTH_COMMAND_INIT(handle) { \
+    .sessionHandle = (handle), \
+    .nonce = TPM2B_EMPTY_INIT, \
+    .hmac = TPM2B_EMPTY_INIT, \
+    .sessionAttributes = 0 \
+}
+
+#define val_check(rval, success_code, err_code) do { \
     if ((rval) != TPM2_RC_SUCCESS) { \
         g_warning("%s return code %X", __func__, (rval)); \
-        return FALSE; \
+        err_code; \
     } \
-    return TRUE; \
+    else { \
+        success_code; \
+    } \
 } while (0)
 
+#define return_val_code(rval, code, _default) \
+    val_check(rval, return (code), return (_default))
+#define return_val_if_fail(rval, code, ret) \
+    val_check(rval, ;, code; return ret);
+#define return_val(rval) return_val_code(rval, TRUE, FALSE)
 
 struct tpm_context {
     TSS2_SYS_CONTEXT *sapi_ctx;
 };
-
-static TSS2_TCTI_CONTEXT *tcti_ctx;
 
 static gboolean tpm2_password(const gchar *password, TPM2B_AUTH *dest) {
     size_t wrote = snprintf((char *)&dest->buffer, BUFFER_SIZE(typeof(*dest), buffer),
@@ -73,12 +84,8 @@ static gboolean tpm2_password(const gchar *password, TPM2B_AUTH *dest) {
     return TRUE;
 }
 
-
-
 static TSS2_TCTI_CONTEXT *tpm2_tcti_ldr_load(void) {
     const char *ldr_path = "libtss2-tcti-tabrmd.so.0";
-    if (tcti_ctx)
-        return tcti_ctx;
     void *handle = dlopen(ldr_path, RTLD_LAZY);
     if (!handle) {
         g_warning(dlerror());
@@ -94,21 +101,11 @@ static TSS2_TCTI_CONTEXT *tpm2_tcti_ldr_load(void) {
     TSS2_TCTI_INIT_FUNC init = info->init;
     size_t size;
     TSS2_RC rc = init(NULL, &size, NULL);
-    if (rc != TPM2_RC_SUCCESS) {
-        g_warning("tcti init failed for library: %s", ldr_path);
-        dlclose(handle);
-        return NULL;
-    }
+    return_val_if_fail(rc, dlclose(handle), NULL);
     TSS2_TCTI_CONTEXT *ctx = g_malloc0(size);
     rc = init(ctx, &size, NULL);
-    if (rc != TPM2_RC_SUCCESS) {
-        g_warning("tcti init failed for library: %s", ldr_path);
-        dlclose(handle);
-        g_free(ctx);
-        return NULL;
-    }
+    return_val_if_fail(rc, { dlclose(handle); g_free(ctx); }, NULL);
     dlclose(handle);
-    tcti_ctx = ctx;
     return ctx;
 }
 
@@ -119,11 +116,7 @@ static TSS2_SYS_CONTEXT *sapi_ctx_init(TSS2_TCTI_CONTEXT *tcti_ctx) {
     size_t size = Tss2_Sys_GetContextSize(0);
     TSS2_SYS_CONTEXT *sapi_ctx = g_malloc0(size);
     TSS2_RC rval = Tss2_Sys_Initialize(sapi_ctx, size, tcti_ctx, &abi_version);
-    if (rval != TPM2_RC_SUCCESS) {
-        g_warning("error 0x%X", rval);
-        g_free(sapi_ctx);
-        return NULL;
-    }
+    return_val_if_fail(rval, g_free(sapi_ctx), NULL);
     return sapi_ctx;
 }
 
@@ -137,16 +130,27 @@ struct tpm_context *tpm_context_new(void) {
     return ctx;
 }
 
+void tpm_context_free(struct tpm_context *ctx) {
+    TSS2_RC rc;
+    TSS2_TCTI_CONTEXT *tcti;
+    if (!ctx)
+        return;
+    if (ctx->sapi_ctx) {
+        rc = Tss2_Sys_GetTctiContext(ctx->sapi_ctx, &tcti);
+        return_val_if_fail(rc, ;, ;);
+        Tss2_Tcti_Finalize(tcti);
+        g_free(tcti);
+        Tss2_Sys_Finalize(ctx->sapi_ctx);
+        g_free(ctx->sapi_ctx);
+    }
+    g_free(ctx);
+}
+
 gboolean tpm_context_load_primary(struct tpm_context *ctx,
                                   const gchar *primary, const gchar *parent,
                                   TPMI_RH_HIERARCHY hierarchy,
                                   TPM2_HANDLE *out_handle) {
-    TPMS_AUTH_COMMAND session_data = {
-        .sessionHandle = TPM2_RS_PW,
-        .nonce = TPM2B_EMPTY_INIT,
-        .hmac = TPM2B_EMPTY_INIT,
-        .sessionAttributes = 0
-    };
+    TPMS_AUTH_COMMAND session_data = TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW);
     TPM2B_SENSITIVE_CREATE inSensitive = TPM2B_SENSITIVE_CREATE_EMPTY_INIT;
     TPM2B_PUBLIC in_public = PUBLIC_AREA_TPMA_OBJECT_DEFAULT_INIT;
     if (!tpm2_password(parent, &session_data.hmac))
@@ -199,11 +203,7 @@ gboolean tpm_context_create_rsa(struct tpm_context *ctx, tpm_handle_t *parent_ha
     TPM2B_DIGEST creationHash = TPM2B_TYPE_INIT(TPM2B_DIGEST, buffer);
     TPMT_TK_CREATION creationTicket = TPMT_TK_CREATION_EMPTY_INIT;
 
-    TPMS_AUTH_COMMAND session_data = {
-        .sessionHandle = TPM2_RS_PW,
-        .sessionAttributes = 0,
-        .hmac.size = 0
-    };
+    TPMS_AUTH_COMMAND session_data = TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW);
     TPM2B_SENSITIVE_CREATE inSensitive = TPM2B_SENSITIVE_CREATE_EMPTY_INIT;
     TPM2B_PUBLIC in_public = PUBLIC_AREA_TPMA_OBJECT_DEFAULT_INIT;
     if (!tpm2_password(parentpass, &session_data.hmac))
@@ -236,12 +236,7 @@ gboolean tpm_context_load_rsa(struct tpm_context *ctx, tpm_handle_t *parent_hand
                               const gchar *parent_pass,
                               TPM2B_PRIVATE *in_private, TPM2B_PUBLIC *in_public,
                               tpm_handle_t *out_handle) {
-    TPMS_AUTH_COMMAND session_data = {
-        .sessionHandle = TPM2_RS_PW,
-        .nonce = TPM2B_EMPTY_INIT,
-        .hmac = TPM2B_EMPTY_INIT,
-        .sessionAttributes = 0
-    };
+    TPMS_AUTH_COMMAND session_data = TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW);
     UINT32 rval;
     TSS2L_SYS_AUTH_COMMAND sessionsData;
     TSS2L_SYS_AUTH_RESPONSE sessionsDataOut;
@@ -256,6 +251,111 @@ gboolean tpm_context_load_rsa(struct tpm_context *ctx, tpm_handle_t *parent_hand
     return_val(rval);
 }
 
-gboolean tpm_context_encrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
-                                 GBytes *in, GBytes *out) {
+GBytes *tpm_context_encrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
+                                 GBytes *in) {
+    TSS2_RC rval;
+    TPM2B_PUBLIC_KEY_RSA in_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
+    TPM2B_PUBLIC_KEY_RSA out_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
+    TPMT_RSA_DECRYPT scheme;
+    TPM2B_DATA label;
+    TSS2L_SYS_AUTH_RESPONSE out_sessions_data;
+    scheme.scheme = TPM2_ALG_RSAES;
+    label.size = 0;
+    gconstpointer data;
+    gsize size;
+    data = g_bytes_get_data(in, &size);
+    if (!data || size > in_msg.size)
+        return NULL;
+    in_msg.size = size;
+    g_memmove(in_msg.buffer, data, size);
+    rval = TSS2_RETRY_EXP(Tss2_Sys_RSA_Encrypt(ctx->sapi_ctx, *handle,
+                                               NULL, &in_msg,
+                                               &scheme, &label, &out_msg,
+                                               &out_sessions_data));
+    return_val_code(rval, g_bytes_new(out_msg.buffer, out_msg.size), NULL);
 }
+
+GBytes *tpm_context_decrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
+                                const gchar *objpass, GBytes *in){
+    TSS2_RC rval;
+    TPM2B_PUBLIC_KEY_RSA in_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
+    TPM2B_PUBLIC_KEY_RSA out_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
+    TPMS_AUTH_COMMAND session = TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW);
+    TPMT_RSA_DECRYPT scheme;
+    TPM2B_DATA label;
+    TSS2L_SYS_AUTH_COMMAND sessions_data = { 1, { session }};
+    TSS2L_SYS_AUTH_RESPONSE out_sessions_data;
+    gconstpointer data;
+    gsize size;
+
+    scheme.scheme = TPM2_ALG_RSAES;
+    label.size = 0;
+    if (!tpm2_password(objpass, &session.hmac))
+        return NULL;
+    data = g_bytes_get_data(in, &size);
+    if (!data || size > in_msg.size)
+        return NULL;
+    in_msg.size = size;
+    g_memmove(in_msg.buffer, data, size);
+    rval = TSS2_RETRY_EXP(Tss2_Sys_RSA_Decrypt(ctx->sapi_ctx, *handle,
+                                               &sessions_data, &in_msg, &scheme,
+                                               &label, &out_msg, &out_sessions_data));
+    return_val_code(rval, g_bytes_new(out_msg.buffer, out_msg.size), NULL);
+}
+
+static gboolean files_load_bytes_from_path(const char *path, UINT8 *buf, UINT16 *size) {
+    if (!buf || !size || !path)
+        return FALSE;
+    g_autofree gchar *tmp = NULL;
+    gsize length;
+    g_autoptr(GFile) file = g_file_new_for_path(path);
+    g_autoptr(GError) err = NULL;
+    gboolean ret = g_file_load_contents(file, NULL, &tmp, &length, NULL, &err);
+    if (!ret) {
+        g_warning(err->message);
+        return FALSE;
+    }
+    if (length > *size)
+        return FALSE;
+    memmove(buf, tmp, length);
+    *size = length;
+    return TRUE;
+}
+
+static gboolean files_save_bytes_to_file(const char *path, UINT8 *buf, UINT16 length) {
+    g_autoptr(GFile) file = g_file_new_for_path(path);
+    g_autoptr(GError) err = NULL;
+    gboolean ret = g_file_replace_contents(file, (char *)buf, length, NULL, TRUE,
+                                           G_FILE_CREATE_REPLACE_DESTINATION, NULL,
+                                           NULL, &err);
+    if (!ret) {
+        g_warning(err->message);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+#define SAVE_TYPE(type, name) \
+    gboolean tpm_util_save_##name(type *name, const char *path) { \
+        size_t offset = 0; \
+        UINT8 buffer[sizeof(*name)]; \
+        TSS2_RC rc = Tss2_MU_##type##_Marshal(name, buffer, sizeof(buffer), &offset); \
+        return_val_code(rc, files_save_bytes_to_file(path, buffer, offset), FALSE); \
+    }
+
+#define LOAD_TYPE(type, name) \
+    gboolean tpm_util_load_##name(const char *path, type *name) { \
+        UINT8 buffer[sizeof(*name)]; \
+        UINT16 size = sizeof(buffer); \
+        gboolean res = files_load_bytes_from_path(path, buffer, &size); \
+        if (!res) \
+            return FALSE; \
+        size_t offset = 0; \
+        TSS2_RC rc = Tss2_MU_##type##_Unmarshal(buffer, size, &offset, name); \
+        return_val(rc); \
+    }
+
+LOAD_TYPE(TPM2B_PRIVATE, private);
+SAVE_TYPE(TPM2B_PRIVATE, private);
+LOAD_TYPE(TPM2B_PUBLIC, public);
+SAVE_TYPE(TPM2B_PUBLIC, public);

@@ -7,6 +7,10 @@
 struct tpm_context;
 typedef TPM2_HANDLE tpm_handle_t;
 
+#define BUFFER_SIZE(type, field) (sizeof(((type *)NULL)->field))
+#define TPM2B_TYPE_INIT(type, field) { .size = BUFFER_SIZE(type, field) }
+#define TPM2B_EMPTY_INIT { .size = 0 }
+
 struct tpm_context *tpm_context_new(void);
 gboolean tpm_context_load_primary(struct tpm_context *ctx,
                                       const gchar *primary, const gchar *pass,
@@ -22,9 +26,25 @@ gboolean tpm_context_load_rsa(struct tpm_context *ctx, tpm_handle_t *parent_hand
                               TPM2B_PRIVATE *in_private, TPM2B_PUBLIC *in_public,
                               tpm_handle_t *out_handle);
 
-gboolean tpm_context_encrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
-                                 GBytes *in, GBytes *out);
+GBytes *tpm_context_encrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
+                                GBytes *in);
 
-gboolean tpm_context_decrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
-                                 GBytes *in, GBytes *out);
+GBytes *tpm_context_decrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
+                                const gchar *objpass, GBytes *in);
+
+void tpm_context_free(struct tpm_context *ctx);
+
+#define LOAD_TYPE_DECLARE(type, name) \
+    gboolean tpm_util_load_##name(const gchar *file, type *name)
+#define SAVE_TYPE_DECLARE(type, name) \
+    gboolean tpm_util_save_##name(type *name, const gchar *file)
+
+LOAD_TYPE_DECLARE(TPM2B_PUBLIC, public);
+LOAD_TYPE_DECLARE(TPM2B_PRIVATE, private);
+SAVE_TYPE_DECLARE(TPM2B_PUBLIC, public);
+SAVE_TYPE_DECLARE(TPM2B_PRIVATE, private);
+
+#define tpm_util_init_private TPM2B_TYPE_INIT(TPM2B_PRIVATE, buffer)
+#define tpm_util_init_public TPM2B_EMPTY_INIT
+
 #endif
