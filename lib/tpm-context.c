@@ -146,6 +146,34 @@ void tpm_context_free(struct tpm_context *ctx) {
     g_free(ctx);
 }
 
+static gboolean change_auth(struct tpm_context *ctx, TPMI_RH_HIERARCHY_AUTH hierarchy,
+                            const gchar *new, const gchar *old) {
+    TPM2B_AUTH newAuth = {};
+    TSS2L_SYS_AUTH_COMMAND sessionsData = {
+        .count = 1,
+        .auths = { TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW)}
+    };
+    if (new && !tpm2_password(new, &newAuth))
+        return FALSE;
+    if (old && !tpm2_password(old, &sessionsData.auths[0].hmac))
+        return FALSE;
+    UINT32 rval = TSS2_RETRY_EXP(Tss2_Sys_HierarchyChangeAuth(ctx->sapi_ctx,
+                                                              hierarchy, &sessionsData, &newAuth, 0));
+    return_val(rval);
+}
+
+gboolean tpm_context_takeownership(struct tpm_context *ctx,
+                                   const struct ownership_password *new, const struct ownership_password *old) {
+    gboolean result = TRUE;
+    if (new->o || old->o)
+        result &= change_auth(ctx, TPM2_RH_OWNER, new->o, old->o);
+    if (new->e || old->e)
+        result &= change_auth(ctx, TPM2_RH_ENDORSEMENT, new->e, old->e);
+    if (new->l || old->l)
+        result &= change_auth(ctx, TPM2_RH_LOCKOUT, new->l, old->l);
+    return result;
+}
+
 gboolean tpm_context_load_primary(struct tpm_context *ctx,
                                   const gchar *primary, const gchar *parent,
                                   TPMI_RH_HIERARCHY hierarchy,
@@ -210,16 +238,21 @@ gboolean tpm_context_create_rsa(struct tpm_context *ctx, tpm_handle_t *parent_ha
         return FALSE;
     if (!tpm2_password(subobjpass, &inSensitive.sensitive.userAuth))
         return FALSE;
-    in_public.publicArea.type = TPM2_ALG_RSA;
-    in_public.publicArea.nameAlg = TPM2_ALG_SHA256;
-    in_public.publicArea.parameters.rsaDetail.symmetric.algorithm = TPM2_ALG_AES;
-    in_public.publicArea.parameters.rsaDetail.symmetric.keyBits.aes = 128;
-    in_public.publicArea.parameters.rsaDetail.symmetric.mode.aes = TPM2_ALG_CFB;
+     in_public.publicArea.type = TPM2_ALG_RSA;
+     in_public.publicArea.nameAlg = TPM2_ALG_SHA256;
+    /*
+     *in_public.publicArea.parameters.rsaDetail.symmetric.algorithm = TPM2_ALG_AES;
+     *in_public.publicArea.parameters.rsaDetail.symmetric.keyBits.aes = 128;
+     *in_public.publicArea.parameters.rsaDetail.symmetric.mode.aes = TPM2_ALG_CFB;
+     */
+    in_public.publicArea.parameters.rsaDetail.symmetric.algorithm = TPM2_ALG_NULL;
     in_public.publicArea.parameters.rsaDetail.scheme.scheme = TPM2_ALG_NULL;
     in_public.publicArea.parameters.rsaDetail.keyBits = 2048;
     in_public.publicArea.parameters.rsaDetail.exponent = 0;
     in_public.publicArea.unique.rsa.size = 0;
-    in_public.publicArea.objectAttributes |= TPMA_OBJECT_USERWITHAUTH;
+    in_public.publicArea.objectAttributes = TPMA_OBJECT_DECRYPT|TPMA_OBJECT_SIGN_ENCRYPT|TPMA_OBJECT_FIXEDTPM
+                                            |TPMA_OBJECT_FIXEDPARENT|TPMA_OBJECT_SENSITIVEDATAORIGIN
+                                            |TPMA_OBJECT_USERWITHAUTH;
     sessionsData.count = 1;
     sessionsData.auths[0] = session_data;
     inSensitive.size = inSensitive.sensitive.userAuth.size + 2;
@@ -252,7 +285,7 @@ gboolean tpm_context_load_rsa(struct tpm_context *ctx, tpm_handle_t *parent_hand
 }
 
 GBytes *tpm_context_encrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
-                                 GBytes *in) {
+                                GBytes *in) {
     TSS2_RC rval;
     TPM2B_PUBLIC_KEY_RSA in_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
     TPM2B_PUBLIC_KEY_RSA out_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
@@ -280,17 +313,16 @@ GBytes *tpm_context_decrypt_rsa(struct tpm_context *ctx, tpm_handle_t *handle,
     TSS2_RC rval;
     TPM2B_PUBLIC_KEY_RSA in_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
     TPM2B_PUBLIC_KEY_RSA out_msg = TPM2B_TYPE_INIT(TPM2B_PUBLIC_KEY_RSA, buffer);
-    TPMS_AUTH_COMMAND session = TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW);
+    TSS2L_SYS_AUTH_COMMAND sessions_data = { 1, { TPMS_AUTH_COMMAND_INIT(TPM2_RS_PW) }};
     TPMT_RSA_DECRYPT scheme;
     TPM2B_DATA label;
-    TSS2L_SYS_AUTH_COMMAND sessions_data = { 1, { session }};
     TSS2L_SYS_AUTH_RESPONSE out_sessions_data;
     gconstpointer data;
     gsize size;
 
     scheme.scheme = TPM2_ALG_RSAES;
     label.size = 0;
-    if (!tpm2_password(objpass, &session.hmac))
+    if (!tpm2_password(objpass, &sessions_data.auths[0].hmac))
         return NULL;
     data = g_bytes_get_data(in, &size);
     if (!data || size > in_msg.size)
@@ -349,7 +381,7 @@ static gboolean files_save_bytes_to_file(const char *path, UINT8 *buf, UINT16 le
         UINT16 size = sizeof(buffer); \
         gboolean res = files_load_bytes_from_path(path, buffer, &size); \
         if (!res) \
-            return FALSE; \
+        return FALSE; \
         size_t offset = 0; \
         TSS2_RC rc = Tss2_MU_##type##_Unmarshal(buffer, size, &offset, name); \
         return_val(rc); \

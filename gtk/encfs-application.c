@@ -3,12 +3,24 @@
 #include"encfs-application.h"
 #include"encfs-window.h"
 #include"config.h"
+#include"tpm-context.h"
+#include"encfs-tpm-window.h"
+
+enum tpm_load_state {
+    TPM_INIT = 0,
+    TPM_LOAD_PRIMARY,
+    TPM_LOAD_RSA
+};
 
 struct _EncfsApplication {
     GtkApplication parent;
     EncfsWindow *window;
     UDisksClient *client;
     UDisksObject *selected;
+
+    struct tpm_context *tpm_ctx;
+    tpm_handle_t handle;
+    enum tpm_load_state tpm_state;
 };
 
 enum {
@@ -43,23 +55,29 @@ static void encfs_application_finalize(GObject *obj) {
     EncfsApplication *app = ENCFS_APPLICATION(obj);
     if (app->client)
         g_object_unref(app->client);
+    tpm_context_free(app->tpm_ctx);
     G_OBJECT_CLASS(encfs_application_parent_class)->finalize(obj);
+}
+
+static void on_tpm_window_unrealize(EncfsTpmWindow *win, EncfsApplication *app) {
 }
 
 static void encfs_application_startup(GApplication *app) {
     EncfsApplication *self = ENCFS_APPLICATION(app);
     G_APPLICATION_CLASS(encfs_application_parent_class)->startup(app);
-    encfs_application_ensure_client(self);
-    self->window = encfs_window_new(self);
     g_application_set_default(app);
-    gtk_application_add_window(GTK_APPLICATION(self), GTK_WINDOW(self->window));
+    encfs_application_ensure_client(self);
+    if (!(self->tpm_ctx = tpm_context_new()))
+        g_application_quit(app);
 }
 
 static void encfs_application_activate(GApplication *app) {
     EncfsApplication *self = ENCFS_APPLICATION(app);
-    gtk_application_add_window(GTK_APPLICATION(app), GTK_WINDOW(self->window));
-    gtk_widget_show(GTK_WIDGET(self->window));
-    gtk_window_present(GTK_WINDOW(self->window));
+    EncfsTpmWindow *tpm_window = encfs_tpm_window_new(app);
+    g_signal_connect(tpm_window, "unrealize",
+                     G_CALLBACK(on_tpm_window_unrealize), self);
+    gtk_widget_show(GTK_WIDGET(tpm_window));
+    gtk_window_present(GTK_WINDOW(tpm_window));
 }
 
 UDisksClient *encfs_application_get_client(EncfsApplication *app) {

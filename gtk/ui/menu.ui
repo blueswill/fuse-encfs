@@ -19,15 +19,11 @@
             </item>
         </section>
     </menu>
-    <menu id="create_menu">
+    <menu id="tpm_menu">
         <section>
             <item>
-                <attribute name="label" translatable="yes">Select master key pair</attribute>
-                <attribute name="action">win.select-master</attribute>
-            </item>
-            <item>
-                <attribute name="label" translatable="yes">Select ID directory</attribute>
-                <attribute name="action">win.select-iddir</attribute>
+                <attribute name="label" translatable="yes">Take ownership</attribute>
+                <attribute name="action">win.take-ownership</attribute>
             </item>
         </section>
     </menu>

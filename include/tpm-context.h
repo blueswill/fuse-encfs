@@ -11,7 +11,16 @@ typedef TPM2_HANDLE tpm_handle_t;
 #define TPM2B_TYPE_INIT(type, field) { .size = BUFFER_SIZE(type, field) }
 #define TPM2B_EMPTY_INIT { .size = 0 }
 
+struct ownership_password {
+    const gchar *o, *e, *l;
+};
+
+#define ownership_password_init(p, _o, _e, _l) \
+    ({ (p)->o = (_o); (p)->e = (_e); (p)->l = (_l); (p); })
+
 struct tpm_context *tpm_context_new(void);
+gboolean tpm_context_takeownership(struct tpm_context *ctx,
+                                   const struct ownership_password *new, const struct ownership_password *old);
 gboolean tpm_context_load_primary(struct tpm_context *ctx,
                                       const gchar *primary, const gchar *pass,
                                       TPMI_RH_HIERARCHY hierarchy,
