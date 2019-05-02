@@ -5,6 +5,7 @@
   <object class="GtkDialog" id="generate-rsa-dialog">
     <property name="visible">True</property>
     <property name="can_focus">True</property>
+    <property name="title" translatable="yes">Generate RSA</property>
     <property name="resizable">False</property>
     <property name="modal">True</property>
     <property name="window_position">center-on-parent</property>

@@ -22,7 +22,6 @@ struct _EncfsWindow {
     EncfsMountGrid *mount_grid;
     GtkLabel *usb_label;
     GtkStack *action_stack;
-    GSettings *settings;
     GMenu *usb_menu;
     GList *objects;
 };
@@ -213,7 +212,6 @@ static void update_usb_menus(EncfsWindow *self) {
 static void encfs_window_constructed(GObject *obj) {
     EncfsWindow *self = ENCFS_WINDOW(obj);
     G_OBJECT_CLASS(encfs_window_parent_class)->constructed(obj);
-    self->settings = g_settings_new("swhc.encfs");
     GtkBuilder *builder = gtk_builder_new_from_resource("/swhc/encfs/menu.ui");
     GMenu *menu = G_MENU(gtk_builder_get_object(builder, "mode_menu"));
     /* default mode is create mode */
@@ -226,8 +224,6 @@ static void encfs_window_constructed(GObject *obj) {
 
 static void encfs_window_finalize(GObject *obj) {
     EncfsWindow *self = ENCFS_WINDOW(obj);
-    if (self->settings)
-        g_object_unref(self->settings);
     g_list_free_full(self->objects, g_object_unref);
     G_OBJECT_CLASS(encfs_window_parent_class)->finalize(obj);
 }

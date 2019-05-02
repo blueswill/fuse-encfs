@@ -11,6 +11,8 @@ G_DECLARE_FINAL_TYPE(EncfsTpmWindow, encfs_tpm_window, ENCFS, TPM_WINDOW, GtkApp
 
 EncfsTpmWindow *encfs_tpm_window_new(GApplication *app);
 
+gboolean encfs_tpm_window_get_active(EncfsTpmWindow *self);
+
 G_END_DECLS
 
 #endif /* ifndef ENCFS_TPM_WINDOW_H */

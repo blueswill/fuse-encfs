@@ -11,6 +11,8 @@ struct _EncfsTpmWindow {
     GtkLabel *priv_label, *pub_label;
 
     gchar *priv, *pub;
+    /* active when Ok button clicked */
+    gboolean active;
 };
 
 G_DEFINE_TYPE(EncfsTpmWindow, encfs_tpm_window, GTK_TYPE_APPLICATION_WINDOW);
@@ -53,7 +55,6 @@ static void _show_dialog(GtkWindow *win, const char *format, ...) {
     gtk_widget_destroy(dialog);
 }
 
-
 static void on_ok_button_clicked(EncfsTpmWindow *self) {
     /* TODO: check all fields are satisfied */
     EncfsApplication *app = ENCFS_APPLICATION(g_application_get_default());
@@ -63,8 +64,10 @@ static void on_ok_button_clicked(EncfsTpmWindow *self) {
                                         self->priv, self->pub)) {
         _show_dialog(GTK_WINDOW(self), "TPM load RSA key error");
     }
-    else
+    else {
+        self->active = TRUE;
         gtk_window_close(GTK_WINDOW(self));
+    }
 }
 
 static void _encrypt_file(const gchar *path, EncfsTpmWindow *self) {
@@ -74,8 +77,10 @@ static void _encrypt_file(const gchar *path, EncfsTpmWindow *self) {
     const gchar *primary = gtk_entry_get_text(self->primary_key);
     const gchar *owner = gtk_entry_get_text(self->owner_key);
     g_autoptr(GBytes) content = NULL;
-    if (g_file_get_type() != G_FILE_TYPE_REGULAR)
+    if (g_file_query_file_type(file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) != G_FILE_TYPE_REGULAR) {
+        g_warning("%s is not a regular file", path);
         return;
+    }
     if (!(content = g_file_load_bytes(file, NULL, NULL, &err))) {
         g_warning(err->message);
         return;
@@ -125,6 +130,7 @@ static void on_generate_rsa_button_clicked(EncfsTpmWindow *self) {
                 _show_dialog(GTK_WINDOW(dialog), "create RSA error");
         }
     }
+    gtk_window_close(GTK_WINDOW(dialog));
 }
 
 static void encfs_tpm_window_constructed(GObject *obj) {
@@ -204,9 +210,9 @@ static gboolean _take_ownership(GtkBuilder *builder) {
     BUILDER_GET_BY_NAME(builder, new_lockout_entry);
     struct ownership_password old, new;
     ownership_password_init(&old, gtk_entry_get_text(GTK_ENTRY(old_owner_entry)),
-                            NULL, gtk_entry_get_text(GTK_ENTRY(old_lockout_entry))),
-        ownership_password_init(&new, gtk_entry_get_text(GTK_ENTRY(new_owner_entry)),
-                                NULL, gtk_entry_get_text(GTK_ENTRY(new_lockout_entry)));
+                            NULL, gtk_entry_get_text(GTK_ENTRY(old_lockout_entry)));
+    ownership_password_init(&new, gtk_entry_get_text(GTK_ENTRY(new_owner_entry)),
+                            NULL, gtk_entry_get_text(GTK_ENTRY(new_lockout_entry)));
     EncfsApplication *app = ENCFS_APPLICATION(g_application_get_default());
     return encfs_application_tpm_take_ownership(app, &old, &new);
 }
@@ -220,4 +226,9 @@ static void on_take_ownership_active(GSimpleAction *action, GVariant *parameter,
     gint res = gtk_dialog_run(GTK_DIALOG(dialog));
     if (res == GTK_RESPONSE_ACCEPT && !_take_ownership(builder))
         _show_dialog(GTK_WINDOW(self), "TPM take ownership error");
+    gtk_window_close(GTK_WINDOW(dialog));
+}
+
+gboolean encfs_tpm_window_get_active(EncfsTpmWindow *self) {
+    return self->active;
 }

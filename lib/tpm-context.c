@@ -162,14 +162,16 @@ static gboolean change_auth(struct tpm_context *ctx, TPMI_RH_HIERARCHY_AUTH hier
     return_val(rval);
 }
 
+#define NOT_EMPTY(str) ((str) && (str)[0])
+
 gboolean tpm_context_takeownership(struct tpm_context *ctx,
                                    const struct ownership_password *new, const struct ownership_password *old) {
     gboolean result = TRUE;
-    if (new->o || old->o)
+    if (NOT_EMPTY(new->o) || NOT_EMPTY(old->o))
         result &= change_auth(ctx, TPM2_RH_OWNER, new->o, old->o);
-    if (new->e || old->e)
+    if (NOT_EMPTY(new->e) || NOT_EMPTY(old->e))
         result &= change_auth(ctx, TPM2_RH_ENDORSEMENT, new->e, old->e);
-    if (new->l || old->l)
+    if (NOT_EMPTY(new->l) || NOT_EMPTY(old->l))
         result &= change_auth(ctx, TPM2_RH_LOCKOUT, new->l, old->l);
     return result;
 }

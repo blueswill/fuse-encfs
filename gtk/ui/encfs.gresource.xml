@@ -5,6 +5,9 @@
         <file preprocess="xml-stripblanks">encfs-window.ui</file>
         <file preprocess="xml-stripblanks">mount-grid.ui</file>
         <file preprocess="xml-stripblanks">monitor-grid.ui</file>
+        <file preprocess="xml-stripblanks">tpm-window.ui</file>
+        <file preprocess="xml-stripblanks">ownership-dialog.ui</file>
+        <file preprocess="xml-stripblanks">generate-rsa.ui</file>
         <file preprocess="xml-stripblanks">menu.ui</file>
     </gresource>
 </gresources>

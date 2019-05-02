@@ -56,7 +56,7 @@ static void create_private_key_file(const char *id, struct create_context *args)
         return;
     }
     struct crypto *crypto = crypto_new(args->pair, id);
-    crypto_write_file(crypto, fd);
+    crypto_write_file(crypto, fd, NULL, NULL);
     close(fd);
     crypto_free(crypto);
     g_free(str);
@@ -84,7 +84,8 @@ static int check_block(struct create_context *args) {
 }
 
 struct create_context *create_context_new(int blkfd, int iddirfd,
-                                    struct master_key_pair *pair, int regenerate) {
+                                          struct master_key_pair *pair,
+                                          int regenerate) {
     int ret = -1;
     struct create_context *args = g_new0(struct create_context, 1);
     if (!args)

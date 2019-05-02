@@ -59,7 +59,12 @@ static void encfs_application_finalize(GObject *obj) {
     G_OBJECT_CLASS(encfs_application_parent_class)->finalize(obj);
 }
 
-static void on_tpm_window_unrealize(EncfsTpmWindow *win, EncfsApplication *app) {
+static void on_tpm_window_unrealize(EncfsTpmWindow *tpm_win, EncfsApplication *app) {
+    if (!encfs_tpm_window_get_active(tpm_win) || app->tpm_state != TPM_LOAD_RSA)
+        g_application_quit(G_APPLICATION(app));
+    app->window = encfs_window_new(app);
+    gtk_window_present(GTK_WINDOW(app->window));
+    gtk_widget_show(GTK_WIDGET(app->window));
 }
 
 static void encfs_application_startup(GApplication *app) {
@@ -187,4 +192,80 @@ gboolean encfs_application_loop_setup(GApplication *app,
 
 GtkWindow *encfs_application_get_window(EncfsApplication *app) {
     return GTK_WINDOW(app->window);
+}
+
+gboolean encfs_application_tpm_take_ownership(EncfsApplication *app,
+                                              const struct ownership_password *old,
+                                              const struct ownership_password *new) {
+    gboolean ret = tpm_context_takeownership(app->tpm_ctx, new, old);
+    if (ret)
+        app->tpm_state = TPM_INIT;
+    return ret;
+}
+
+GBytes *encfs_application_tpm_encrypt_file(EncfsApplication *app,
+                                           const gchar *private,
+                                           const gchar *public,
+                                           const gchar *ownerpass,
+                                           const gchar *primary,
+                                           GBytes *in) {
+    if (!encfs_application_tpm_load_rsa(app, ownerpass, primary, private, public))
+        return NULL;
+    return tpm_context_encrypt_rsa(app->tpm_ctx, &app->handle, in);
+}
+
+gboolean encfs_application_tpm_create_rsa(EncfsApplication *app,
+                                          const gchar *ownerpass,
+                                          const gchar *primary,
+                                          const gchar *objectpass,
+                                          const gchar *file_prefix) {
+    g_autofree gchar *public = g_strdup_printf("%s.pub", file_prefix);
+    g_autofree gchar *private = g_strdup_printf("%s.priv", file_prefix);
+    TPM2B_PRIVATE priv = tpm_util_init_private;
+    TPM2B_PUBLIC pub = tpm_util_init_public;
+    switch (app->tpm_state) {
+        case TPM_INIT:
+            if (!tpm_context_load_primary(app->tpm_ctx, primary, ownerpass,
+                                          TPM2_RH_OWNER, &app->handle))
+                return FALSE;
+            app->tpm_state = TPM_LOAD_PRIMARY;
+        case TPM_LOAD_PRIMARY:
+            if (!tpm_context_create_rsa(app->tpm_ctx, &app->handle, primary, objectpass,
+                                        &priv, &pub) ||
+                !tpm_util_save_private(&priv, private) ||
+                !tpm_util_save_public(&pub, public))
+                return FALSE;
+            return TRUE;
+        default:
+            g_warning("Invalid TPM state %d", app->tpm_state);
+    }
+    return FALSE;
+}
+
+gboolean encfs_application_tpm_load_rsa(EncfsApplication *app,
+                                        const gchar *ownerpass,
+                                        const gchar *primary,
+                                        const gchar *private,
+                                        const gchar *public) {
+    TPM2B_PRIVATE priv = tpm_util_init_private;
+    TPM2B_PUBLIC pub = tpm_util_init_public;
+    switch (app->tpm_state) {
+        case TPM_INIT:
+            if (!tpm_context_load_primary(app->tpm_ctx, primary, ownerpass,
+                                          TPM2_RH_OWNER, &app->handle))
+                return FALSE;
+            app->tpm_state = TPM_LOAD_PRIMARY;
+        case TPM_LOAD_PRIMARY:
+            if (!tpm_util_load_private(private, &priv) ||
+                !tpm_util_load_public(public, &pub) ||
+                !tpm_context_load_rsa(app->tpm_ctx, &app->handle, primary,
+                                      &priv, &pub, &app->handle))
+                return FALSE;
+            app->tpm_state = TPM_LOAD_RSA;
+        case TPM_LOAD_RSA:
+            return TRUE;
+        default:
+            g_warning("Invalid TPM state %d", app->tpm_state);
+    }
+    return FALSE;
 }

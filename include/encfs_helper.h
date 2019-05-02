@@ -31,14 +31,16 @@ struct block_header {
 #define INDEX2(x, n) ((x) >> (n))
 #define SIZE2(n) (1 << (n))
 
-struct master_key_pair *master_key_pair_read_file(int fd);
-int master_key_pair_write_file(struct master_key_pair *pair, int fd);
+typedef int (*ENCRYPT_DECRYPT_FUNC)(const char *in, size_t insize, char **out, size_t *outsize, void *userdata);
+
+struct master_key_pair *master_key_pair_read_file(int fd, ENCRYPT_DECRYPT_FUNC func, void *userdata);
+int master_key_pair_write_file(struct master_key_pair *pair, int fd, ENCRYPT_DECRYPT_FUNC func, void *userdata);
 
 struct crypto *crypto_new(struct master_key_pair *pair, const char *id);
 struct crypto *crypto_new_private_key(struct private_key *priv, const char *id);
 void crypto_free(struct crypto *crypto);
 
-struct crypto *crypto_read_file(int fd);
-int crypto_write_file(struct crypto *crypto, int fd);
+struct crypto *crypto_read_file(int fd, ENCRYPT_DECRYPT_FUNC func, void *userdata);
+int crypto_write_file(struct crypto *crypto, int fd, ENCRYPT_DECRYPT_FUNC func, void *userdata);
 
 #endif
