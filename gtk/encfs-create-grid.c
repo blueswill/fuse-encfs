@@ -10,6 +10,7 @@
 #include"create-context.h"
 #include"encfs_helper.h"
 #include"config.h"
+#include"utility.h"
 
 struct _EncfsCreateGrid {
     GtkGrid parent;
@@ -45,7 +46,7 @@ struct create_device_struct {
 G_DEFINE_TYPE(EncfsCreateGrid, encfs_create_grid, GTK_TYPE_GRID);
 
 static gboolean _id_list_foreach(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter,
-                             gpointer userdata) {
+                                 gpointer userdata) {
     (void)path;
     GList **list = userdata;
     GValue val = G_VALUE_INIT;
@@ -104,25 +105,28 @@ static gboolean _create(gpointer userdata) {
                     "Error open master file %s: %s", masterfile, g_strerror(errno));
         goto end;
     }
-    struct master_key_pair *pair = master_key_pair_read_file(masterfd);
-    int regenerate = 0;
-    if (!pair) {
-        regenerate = 1;
-        pair = generate_master_key_pair(TYPE_ENCRYPT);
-        master_key_pair_write_file(pair, masterfd);
+    g_autofree gchar *pass = NULL;
+    if ((pass = _get_password())) {
+        struct master_key_pair *pair = master_key_pair_read_file(masterfd, _decrypt, (void *)pass);
+        int regenerate = 0;
+        if (!pair) {
+            regenerate = 1;
+            pair = generate_master_key_pair(TYPE_ENCRYPT);
+            master_key_pair_write_file(pair, masterfd, _encrypt, NULL);
+        }
+        close(masterfd);
+        struct create_context *args = create_context_new(st->blkfd, iddir,
+                                                         pair, regenerate);
+        if (!args) {
+            show_dialog(self->win, "fail to get create context");
+            goto end;
+        }
+        gchar **ids = id_list_get_ids(GTK_TREE_MODEL(self->id_list_store));
+        if (create_context_create(args, (void *)ids) < 0)
+            show_dialog(self->win, "fail to create device");
+        g_strfreev(ids);
+        create_context_free(args);
     }
-    close(masterfd);
-    struct create_context *args = create_context_new(st->blkfd, iddir,
-                                                     pair, regenerate);
-    if (!args) {
-        show_dialog(self->win, "fail to get create context");
-        goto end;
-    }
-    gchar **ids = id_list_get_ids(GTK_TREE_MODEL(self->id_list_store));
-    if (create_context_create(args, (void *)ids) < 0)
-        show_dialog(self->win, "fail to create device");
-    g_strfreev(ids);
-    create_context_free(args);
 end:
     if (iddir >= 0)
         close(iddir);

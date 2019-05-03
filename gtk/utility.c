@@ -1,5 +1,6 @@
 #include<gtk/gtk.h>
 #include<udisks/udisks.h>
+#include"encfs-application.h"
 
 gchar *unfused_path(const gchar *path) {
     gchar *ret;
@@ -28,5 +29,47 @@ gchar *unfused_path(const gchar *path) {
             }
         }
     }
+    return ret;
+}
+
+int _decrypt(const gchar *in, size_t inlen, char **out, size_t *outlen, void *userdata) {
+    const gchar *pass = userdata;
+    EncfsApplication *app = ENCFS_APPLICATION(g_application_get_default());
+    g_autoptr(GBytes) inbytes = g_bytes_new(in, inlen);
+    g_autoptr(GBytes) outbytes = encfs_application_tpm_decrypt_file(app, pass, inbytes);
+    if (outbytes != NULL) {
+        gconstpointer data = g_bytes_get_data(outbytes, outlen);
+        *out = g_malloc(*outlen);
+        g_memmove(*out, data, *outlen);
+        return 0;
+    }
+    return -1;
+}
+
+int _encrypt(const gchar *in, size_t inlen, char **out, size_t *outlen, void *userdata) {
+    (void)userdata;
+    EncfsApplication *app = ENCFS_APPLICATION(g_application_get_default());
+    g_autoptr(GBytes) inbytes = g_bytes_new(in, inlen);
+    g_autoptr(GBytes) outbytes = encfs_application_tpm_encrypt_file(app, NULL, NULL, NULL, NULL, inbytes);
+    if (outbytes != NULL) {
+        gconstpointer data = g_bytes_get_data(outbytes, outlen);
+        *out = g_malloc(*outlen);
+        g_memmove(*out, data, *outlen);
+        return 0;
+    }
+    return -1;
+}
+
+gchar *_get_password(void) {
+    g_autoptr(GtkBuilder) builder = gtk_builder_new_from_resource("/swhc/encfs/generate-rsa.ui");
+    GObject *dialog = gtk_builder_get_object(builder, "generate-rsa-dialog");
+    gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+    gchar *ret = NULL;
+    if (res == GTK_RESPONSE_ACCEPT) {
+        GObject *entry = gtk_builder_get_object(builder, "objectpass");
+        const gchar *pass = gtk_entry_get_text(GTK_ENTRY(entry));
+        ret = g_strdup(pass);
+    }
+    gtk_window_close(GTK_WINDOW(dialog));
     return ret;
 }

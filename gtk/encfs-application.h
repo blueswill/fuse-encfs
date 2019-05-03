@@ -35,6 +35,10 @@ GBytes *encfs_application_tpm_encrypt_file(EncfsApplication *app,
                                            const gchar *primary,
                                            GBytes *in);
 
+GBytes *encfs_application_tpm_decrypt_file(EncfsApplication *app,
+                                           const gchar *objectpass,
+                                           GBytes *in);
+
 gboolean encfs_application_tpm_create_rsa(EncfsApplication *app,
                                           const gchar *ownerpass,
                                           const gchar *primary,

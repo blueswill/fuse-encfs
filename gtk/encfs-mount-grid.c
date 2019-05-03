@@ -197,19 +197,22 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
         show_error_dialog(win, "Error open file %s: %s", priv_file, g_strerror(errno));
         goto end;
     }
-    if (!(crypto = crypto_read_file(cryptofd))) {
-        show_error_dialog(win, "read %s error", priv_file);
-        goto end;
+    g_autofree gchar *pass = NULL;
+    if ((pass = _get_password())) {
+        if (!(crypto = crypto_read_file(cryptofd, _decrypt, pass))) {
+            show_error_dialog(win, "read %s error", priv_file);
+            goto end;
+        }
+        const gchar *name = udisks_object_info_get_name(info);
+        const gchar *loop_backing_file = loop ? udisks_loop_get_backing_file(loop) : NULL;
+        g_autofree gchar *target = NULL;
+        if (loop_backing_file)
+            target = unfused_path(loop_backing_file);
+        else
+            target = g_strdup(name);
+        if (do_mount(blkfd, crypto, target) < 0)
+            show_error_dialog(win, "mount error");
     }
-    const gchar *name = udisks_object_info_get_name(info);
-    const gchar *loop_backing_file = loop ? udisks_loop_get_backing_file(loop) : NULL;
-    g_autofree gchar *target = NULL;
-    if (loop_backing_file)
-        target = unfused_path(loop_backing_file);
-    else
-        target = g_strdup(name);
-    if (do_mount(blkfd, crypto, target) < 0)
-        show_error_dialog(win, "mount error");
 end:
     if (blkfd >= 0)
         close(blkfd);

@@ -58,7 +58,6 @@ static struct crypto_file *_get_crypto_file(int fd, ENCRYPT_DECRYPT_FUNC func, v
     size_t size;
     struct crypto_file *fp = NULL;
     struct stat st;
-    int flag = 1;
     if (fstat(fd, &st) < 0)
         goto end;
     size = st.st_size;
@@ -73,16 +72,15 @@ static struct crypto_file *_get_crypto_file(int fd, ENCRYPT_DECRYPT_FUNC func, v
             g_free(buf);
             goto end;
         }
-        munmap(mapped, size);
-        mapped = buf;
-        size = s;
-        flag = 0;
+        fp = (void *)buf;
+    }
+    else {
+        fp = g_malloc(size);
+        g_memmove(fp, mapped, size);
     }
 end:
-    if (flag && mapped != MAP_FAILED)
+    if (mapped != MAP_FAILED)
         munmap(mapped, size);
-    else
-        g_free(mapped);
     return fp;
 }
 
@@ -132,9 +130,11 @@ end:
 }
 
 void crypto_free(struct crypto *crypto) {
-    g_free(crypto->id);
-    private_key_free(crypto->pkey);
-    g_free(crypto);
+    if(crypto) {
+        g_free(crypto->id);
+        private_key_free(crypto->pkey);
+        g_free(crypto);
+    }
 }
 
 struct crypto *crypto_new(struct master_key_pair *pair, const char *id) {

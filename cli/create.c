@@ -9,6 +9,8 @@
 #include"encfs_helper.h"
 #include"create-context.h"
 #include"config.h"
+#include"tpm-context.h"
+#include"helper.h"
 
 static struct option opts[] = {
     {"master-pair-file", required_argument, NULL, 'm'},
@@ -16,6 +18,13 @@ static struct option opts[] = {
     {"id", required_argument, NULL, 't'},
     {"id-directory", required_argument, NULL, 'd'},
     {"generate", no_argument, NULL, 'g'},
+
+    {"owner", required_argument, NULL, 'o'},
+    {"primary", required_argument, NULL, 'p'},
+    {"private", required_argument, NULL, 'r'},
+    {"public", required_argument, NULL, 'u'},
+    {"object", required_argument, NULL, 's'},
+
     {"help", no_argument, NULL, 'h'},
     {NULL, 0, NULL, 0}
 };
@@ -27,61 +36,63 @@ static void usage(void) {
     fputs("    -t, --id=ID1[,ID2]...                only ID1[,ID2]... can access data in block device\n", stderr);
     fputs("    -d, --id-directory=IDDIR             store ID's private key in IDDIR\n", stderr);
     fputs("    -g, --generate                       generate new master pair\n", stderr);
+    fputs("    -o, --owner=OWNER                    set owner password\n", stderr);
+    fputs("    -p, --primary=PRIMARY                set primary password\n", stderr);
+    fputs("    -r, --private=PRIVATE_FILE           set RSA private key file\n", stderr);
+    fputs("    -u, --public=PUBLIC_FILE             set RSA public key file\n", stderr);
+    fputs("    -s, --object=OBJECT                  set RSA object password\n", stderr);
     fputs("    -h, --help                           show this help message\n", stderr);
 }
 
 static struct create_context *check_args(int argc, char **argv, char ***id_list) {
     struct master_key_pair *pair;
     const char *master, *blk, *ids, *id_dir;
+    const gchar *owner, *primary, *private, *public, *object;
+    struct tpm_args tpm_args;
     g_autofree gchar *masterfile = NULL;
     int generate = 0;
     opterr = 0;
     int ind;
-    while ((ind = getopt_long(argc, argv, "gm:b:t:d:h", opts, NULL)) != -1) {
+    while ((ind = getopt_long(argc, argv, "gm:b:t:d:o:p:r:u:s:h", opts, NULL)) != -1) {
         switch (ind) {
             case 'h':
                 usage();
                 exit(EXIT_SUCCESS);
-            case 'm':
-                master = optarg;
-                break;
-            case 'b':
-                blk = optarg;
-                break;
-            case 't':
-                ids = optarg;
-                break;
-            case 'd':
-                id_dir = optarg;
-                break;
-            case 'g':
-                generate = 1;
-                break;
-            case '?':
-                usage();
-                exit(EXIT_FAILURE);
+            case 'o': owner = optarg; break;
+            case 'p': primary = optarg; break;
+            case 'r': private = optarg; break;
+            case 'u': public = optarg; break;
+            case 's': object = optarg; break;
+            case 'm': master = optarg; break;
+            case 'b': blk = optarg; break;
+            case 't': ids = optarg; break;
+            case 'd': id_dir = optarg; break;
+            case 'g': generate = 1; break;
+            case '?': usage(); exit(EXIT_FAILURE);
         }
     }
-    if (!master || !blk || !ids || !id_dir) {
+    if (!master || !blk || !ids || !id_dir || !private || !public) {
         usage();
         exit(EXIT_FAILURE);
     }
+    if (!tpm_args_init(&tpm_args, owner, primary, private, public, object))
+        exit(EXIT_FAILURE);
     int blkfd = open(blk, O_RDWR);
     if (blkfd < 0) {
         fprintf(stderr, "open %s error: %s\n", blk, strerror(errno));
-        exit(EXIT_FAILURE);
+        goto free_tpm;
     }
     int iddirfd = open(id_dir, O_RDONLY);
     if (iddirfd < 0) {
         if (errno == ENOENT) {
             if (g_mkdir_with_parents(id_dir, S_IRWXU | S_IRWXG) < 0) {
                 fprintf(stderr, "create %s error: %s\n", id_dir, strerror(errno));
-                exit(EXIT_FAILURE);
+                goto free_tpm;
             }
         }
         else {
             fprintf(stderr, "open %s error: %s\n", id_dir, strerror(errno));
-            exit(EXIT_FAILURE);
+                goto free_tpm;
         }
     }
     masterfile = g_strdup(master);
@@ -93,25 +104,28 @@ static struct create_context *check_args(int argc, char **argv, char ***id_list)
     int masterfd = open(masterfile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
     if (masterfd < 0) {
         fprintf(stderr, "open %s error: %s\n", master, strerror(errno));
-        exit(EXIT_FAILURE);
+        goto free_tpm;
     }
     if (generate)
         pair = generate_master_key_pair(TYPE_ENCRYPT);
     else
-        pair = master_key_pair_read_file(masterfd);
+        pair = master_key_pair_read_file(masterfd, _decrypt, &tpm_args);
     if (!pair) {
         fputs("failed to get master key pair\n", stderr);
-        exit(EXIT_FAILURE);
+        goto free_tpm;
     }
-    if (generate && master_key_pair_write_file(pair, masterfd) < 0) {
+    if (generate && master_key_pair_write_file(pair, masterfd, _encrypt, &tpm_args) < 0) {
         perror("write master key pair error");
-        exit(EXIT_FAILURE);
+        goto free_tpm;
     }
     struct create_context *args = create_context_new(blkfd, iddirfd, pair, generate);
     if (!args)
-        exit(EXIT_FAILURE);
+        goto free_tpm;
     *id_list = g_strsplit(ids, ",", -1);
     return args;
+free_tpm:
+    tpm_args_reset(&tpm_args);
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv) {

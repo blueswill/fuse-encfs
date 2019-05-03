@@ -3,7 +3,6 @@
 
 #include<sys/types.h>
 #include"sm9.h"
-#include"tpm-context.h"
 
 struct create_context;
 

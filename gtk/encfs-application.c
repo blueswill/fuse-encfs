@@ -269,3 +269,13 @@ gboolean encfs_application_tpm_load_rsa(EncfsApplication *app,
     }
     return FALSE;
 }
+
+GBytes *encfs_application_tpm_decrypt_file(EncfsApplication *app,
+                                           const gchar *objpass,
+                                           GBytes *in) {
+    if (app->tpm_state != TPM_LOAD_RSA) {
+        g_warning("Invalid TPM state %d", app->tpm_state);
+        return NULL;
+    }
+    return tpm_context_decrypt_rsa(app->tpm_ctx, &app->handle, objpass, in);
+}
