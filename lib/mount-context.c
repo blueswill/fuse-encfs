@@ -11,57 +11,29 @@
 #include"mount-context.h"
 #include"sm4.h"
 #include"encfs-cb.h"
-
-static int check_header(struct mount_context *ctx,
-                        struct block_header *header,
-                        struct crypto *crypto) {
-    struct block_header *ptr = header;
-    while (IS_HEADER(ptr->header_flag, HEADER_CUR_TYPE)) {
-        int i;
-        for (i = 0; i < ptr->header_number; ++i) {
-            uint8_t *ciphertext = ptr->ciphertext[i];
-            struct cipher *cipher = ciphertext_read((void *)ciphertext, 160);
-            char *out = NULL;
-            size_t outlen;
-            if (cipher && !sm9_decrypt(crypto->pkey, cipher,
-                                       crypto->id, crypto->idlen, 1, 0x100,
-                                       &out, &outlen) &&
-                outlen == ctx->keysize) {
-                memmove(ctx->key, out, ctx->keysize);
-                ctx->start_offset = sizeof(struct block_header) * (ptr - header + 1);
-                g_free(out);
-                ciphertext_free(cipher);
-                return 0;
-            }
-            ciphertext_free(cipher);
-        }
-        if (!IS_HEADER(ptr->header_flag, HEADER_NXT_TYPE))
-            return -1;
-        ++ptr;
-    }
-}
+#include"check-context.h"
 
 struct mount_context *mount_context_new(int blkfd, struct crypto *crypto, const char *target) {
     int ret = -1;
-    struct block_header *header = MAP_FAILED;
     struct mount_context *ctx = g_new(struct mount_context, 1);
+    struct check_context *check_ctx = check_context_new(blkfd, crypto);
+    if (!check_ctx)
+        goto end;
     ctx->blkfd = dup(blkfd);
     ctx->keysize = SM4_XTS_KEY_BYTE_SIZE;
-    ctx->block_size = SM4_BLOCK_BYTE_SIZE;
     ctx->key = g_new(uint8_t, ctx->keysize);
     ctx->target = g_strdup(target ? target : "");
     pthread_mutex_init(&ctx->mutex, NULL);
+    ctx->start_offset = check_context_do_check(check_ctx);
+    if (ctx->start_offset <= 0) {
+        g_warning("check device error");
+        goto end;
+    }
     ioctl(blkfd, BLKGETSIZE64, &ctx->block_size);
-    if ((header = mmap(NULL, ctx->block_size, PROT_READ,
-                       MAP_PRIVATE, blkfd, 0)) == MAP_FAILED)
-        goto end;
-    if (check_header(ctx, header, crypto) < 0)
-        goto end;
     ret = 0;
 end:
+    check_context_free(check_ctx);
     if (ret < 0) {
-        if (header != MAP_FAILED)
-            munmap(header, ctx->block_size);
         mount_context_free(ctx);
         ctx = NULL;
     }

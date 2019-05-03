@@ -3,6 +3,7 @@
 
 #include<fuse3/fuse.h>
 #include"encfs_helper.h"
+#include"check-context.h"
 
 struct mount_context {
     unsigned char *key;

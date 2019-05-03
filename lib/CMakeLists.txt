@@ -13,7 +13,7 @@ target_include_directories(tpmctx PRIVATE ${TPMCTX_INCLUDE_DIRS})
 target_compile_options(tpmctx PRIVATE ${TPMCTX_CFLAGS_OTHER})
 target_link_libraries(tpmctx ${TPMCTX_LIBRARIES} dl)
 
-add_library(encfs encfs_helper.c create-context.c mount-context.c encfs-cb.c)
+add_library(encfs encfs_helper.c create-context.c mount-context.c encfs-cb.c check-context.c)
 target_link_libraries(encfs smcrypt tpmctx ${FUSE3_LIBRARIES})
 
 add_subdirectory(crypto)
