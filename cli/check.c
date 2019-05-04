@@ -6,6 +6,7 @@
 #include<json-glib/json-glib.h>
 #include"check-context.h"
 #include"encfs_helper.h"
+#include"helper.h"
 
 static struct option opts[] = {
     {"config", required_argument, NULL, 'c'},
@@ -46,38 +47,66 @@ static void print_help(const char *name) {
           stderr);
 }
 
+static void _config_get_string(JsonObject *obj,
+                               const gchar *name, gchar const **addr,
+                               ...
+                               /* NULL */) {
+    va_list ap;
+    va_start(ap, addr);
+    while (name) {
+        *addr = json_object_get_string_member(obj, name);
+        name = va_arg(ap, const gchar *);
+        addr = va_arg(ap, gchar const **);
+    }
+    va_end(ap);
+}
+
 static int config_get(const char *config, struct config *user_config) {
     g_autoptr(JsonParser) parser = json_parser_new();
     g_autoptr(GError) err = NULL;
+    const gchar *owner, *primary, *private, *public, *object;
+    const gchar *pkey;
+    struct tpm_args args;
     if (!json_parser_load_from_file(parser, config, &err)) {
         g_warning(err->message);
         return -1;
     }
-    g_autoptr(JsonPath) path = json_path_new();
-    if (!json_path_compile(path, "$.pkey", &err)) {
-        g_warning(err->message);
+    JsonNode *node = json_parser_get_root(parser);
+    if (json_node_get_node_type(node) != JSON_NODE_OBJECT) {
+        g_warning("config root is not OBJECT");
         return -1;
     }
-    g_autoptr(JsonNode) node = json_path_match(path, json_parser_get_root(parser));
-    JsonArray *arr = json_node_get_array(node);
-    if (json_array_get_length(arr) != 1) {
-        g_warning("no pkey found in configuration");
+    _config_get_string(json_node_get_object(node),
+                       "owner", &owner, "primary", &primary,
+                       "private", &private, "public", &public,
+                       "object", &object, "pkey", &pkey,
+                       NULL);
+    if (!private || !public) {
+        g_warning("no private key nor public key provided");
         return -1;
     }
-    JsonNode *pkey = json_array_get_element(arr, 0);
-    const gchar *f = json_node_get_string(pkey);
-    int fd = open(f, O_RDONLY);
+    if (!pkey) {
+        g_warning("no SM9 private key provided");
+        return -1;
+    }
+    if (!tpm_args_init(&args, owner, primary, private, public, object))
+        return -1;
+    int fd = open(pkey, O_RDONLY);
     if (fd < 0) {
-        g_warning("read %s error: %s", f, g_strerror(errno));
-        return -1;
+        g_warning("read %s error: %s", pkey, g_strerror(errno));
+        goto free_tpm;
     }
-    user_config->crypto = crypto_read_file(fd);
+    user_config->crypto = crypto_read_file(fd, _decrypt, &args);
     close(fd);
     if (!user_config->crypto) {
-        g_warning("%s is not a valid pkey file", f);
+        g_warning("%s is not a valid pkey file", pkey);
         return -1;
     }
+    tpm_args_reset(&args);
     return 0;
+free_tpm:
+    tpm_args_reset(&args);
+    return -1;
 }
 
 static int check_device(const char *device, struct crypto *crypto) {

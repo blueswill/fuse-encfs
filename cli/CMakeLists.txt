@@ -9,7 +9,7 @@ target_link_libraries(encfs-mount encfs)
 add_executable(encfs-create create.c helper.c)
 target_link_libraries(encfs-create encfs)
 
-add_executable(encfs-check check.c)
+add_executable(encfs-check check.c helper.c)
 target_compile_options(encfs-check PRIVATE ${JSON_GLIB_CFLAGS_OTHER})
 target_include_directories(encfs-check PRIVATE ${JSON_GLIB_INCLUDE_DIRS})
 target_link_libraries(encfs-check PRIVATE ${JSON_GLIB_LIBRARIES})

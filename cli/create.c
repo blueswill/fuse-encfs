@@ -46,8 +46,9 @@ static void usage(void) {
 
 static struct create_context *check_args(int argc, char **argv, char ***id_list) {
     struct master_key_pair *pair;
-    const char *master, *blk, *ids, *id_dir;
-    const gchar *owner, *primary, *private, *public, *object;
+    const char *master = NULL, *blk = NULL, *ids = NULL, *id_dir = NULL;
+    const gchar *owner = NULL, *primary = NULL, *private = NULL, *public = NULL;
+    const gchar *object = NULL;
     struct tpm_args tpm_args;
     g_autofree gchar *masterfile = NULL;
     int generate = 0;
