@@ -100,6 +100,7 @@ struct crypto *crypto_read_file(int fd, ENCRYPT_DECRYPT_FUNC func, void *userdat
     memmove(crypto->id, fp->id, crypto->idlen);
     ret = 0;
 end:
+    g_free(fp);
     if (ret < 0) {
         crypto_free(crypto);
         crypto = NULL;
