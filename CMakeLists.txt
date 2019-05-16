@@ -4,6 +4,8 @@ project(fuse-encfs C CXX)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
+include(${CMAKE_SOURCE_DIR}/cmake/install.cmake)
+
 find_package(PkgConfig REQUIRED)
 
 PKG_CHECK_MODULES(GLIB REQUIRED glib-2.0)

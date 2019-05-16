@@ -23,3 +23,6 @@ add_executable(encfs-gtk
     )
 
 target_link_libraries(encfs-gtk encfs ${GTK3_LIBRARIES} ${UDISKS2_LIBRARIES})
+
+install(TARGETS encfs-gtk
+    RUNTIME DESTINATION ${INSTALL_BIN_DIR})
