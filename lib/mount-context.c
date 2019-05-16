@@ -29,6 +29,7 @@ struct mount_context *mount_context_new(int blkfd, struct crypto *crypto, const 
         g_warning("check device error");
         goto end;
     }
+    memmove(ctx->key, check_context_get_password(check_ctx), ctx->keysize);
     ioctl(blkfd, BLKGETSIZE64, &ctx->block_size);
     ret = 0;
 end:

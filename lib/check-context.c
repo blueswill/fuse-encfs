@@ -10,6 +10,8 @@
 struct check_context {
     int blkfd;
     struct crypto *crypto;
+    char *passwd;
+    size_t passwd_len;
 };
 
 struct check_context *check_context_new(int blkfd, struct crypto *crypto) {
@@ -20,6 +22,7 @@ struct check_context *check_context_new(int blkfd, struct crypto *crypto) {
         goto end;
     }
     ctx->crypto = crypto;
+    ctx->passwd = NULL;
     return ctx;
 end:
     check_context_free(ctx);
@@ -30,35 +33,35 @@ void check_context_free(struct check_context *ctx) {
     if (ctx) {
         if (ctx->blkfd >= 0)
             close(ctx->blkfd);
+        g_free(ctx->passwd);
         g_free(ctx);
     }
 }
 
-static int check_header(struct block_header *header,
+static int check_header(struct check_context *ctx,
+                        struct block_header *header,
                         struct crypto *crypto) {
     struct block_header *ptr = header;
+    gboolean checked = FALSE;
     while (IS_HEADER(ptr->fs_flag)) {
         int i;
-        for (i = 0; i < ptr->header_number; ++i) {
+        for (i = 0; i < ptr->header_number && !checked; ++i) {
             uint8_t *ciphertext = ptr->ciphertext[i];
             struct cipher *cipher = ciphertext_read((void *)ciphertext, 160);
-            char *out = NULL;
-            size_t outlen;
             if (cipher && !sm9_decrypt(crypto->pkey, cipher,
                                        crypto->id, crypto->idlen, 1, 0x100,
-                                       &out, &outlen) &&
-                outlen == SM4_XTS_KEY_BYTE_SIZE) {
-                g_free(out);
-                ciphertext_free(cipher);
-                return (ptr - header + 1) * sizeof(struct block_header);
+                                       &ctx->passwd, &ctx->passwd_len) &&
+                ctx->passwd_len == SM4_XTS_KEY_BYTE_SIZE) {
+                checked = TRUE;
             }
             ciphertext_free(cipher);
         }
         if (!IS_HEADER_NEXT(ptr->fs_flag))
-            return 0;
+            break;
         ++ptr;
     }
-    return -1;
+    return (ptr - header + 1) * sizeof(struct block_header);
+    return (checked ? 0 : -1);
 }
 
 int check_context_do_check(struct check_context *ctx) {
@@ -73,7 +76,11 @@ int check_context_do_check(struct check_context *ctx) {
         g_warning("fail to map block device: %s", g_strerror(errno));
         return -1;
     }
-    ret = check_header(header, ctx->crypto);
+    ret = check_header(ctx, header, ctx->crypto);
     munmap(header, block_size);
     return ret;
+}
+
+const char *check_context_get_password(struct check_context *ctx) {
+    return ctx->passwd;
 }

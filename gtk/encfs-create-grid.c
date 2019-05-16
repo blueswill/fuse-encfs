@@ -98,7 +98,7 @@ static gboolean _create(gpointer userdata) {
                     "Error open directory %s: %s", self->iddir, g_strerror(errno));
         goto end;
     }
-    int masterfd = open(masterfile, O_RDWR | O_TRUNC | O_CREAT,
+    int masterfd = open(masterfile, O_RDWR | O_CREAT,
                         S_IRUSR | S_IWUSR | S_IRGRP);
     if (masterfd < 0) {
         show_dialog(self->win,
@@ -110,8 +110,10 @@ static gboolean _create(gpointer userdata) {
         struct master_key_pair *pair = master_key_pair_read_file(masterfd, _decrypt, (void *)pass);
         int regenerate = 0;
         if (!pair) {
+            g_warning("master file regenerated");
             regenerate = 1;
             pair = generate_master_key_pair(TYPE_ENCRYPT);
+            ftruncate(masterfd, 0);
             master_key_pair_write_file(pair, masterfd, _encrypt, NULL);
         }
         close(masterfd);
