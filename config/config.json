@@ -1,0 +1,8 @@
+{
+    "pkey": "ids/5.priv",
+    "owner": "owner",
+    "primary": "primary",
+    "private":"key.priv",
+    "public": "key.pub",
+    "object": "object"
+}
