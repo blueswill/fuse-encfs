@@ -1,0 +1,11 @@
+[Unit]
+Description="fuse-encfs service"
+
+[Service]
+Type=forking
+User=root
+ExecStart=encfs-mount.sh -c /etc/fuse-encfs/config.json -d %I
+ExecStop=encfs-unmount.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+SUBSYSTEMS=="usb", DRIVERS=="usb-storage", SUBSYSTEM=="block",  ENV{DEVTYPE}=="disk", ACTION=="add", RUN+="/usr/bin/systemctl start encfs-mount@%k.service"
+
+SUBSYSTEMS="usb", DRIVERS=="usb-storage", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ACTION=="remove", RUN+=/usr/bin/systemctl stop encfs-mount@%k.service"
