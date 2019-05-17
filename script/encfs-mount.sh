@@ -15,7 +15,6 @@ function log() {
 
 function json_get() {
     local NAME=$1
-    log "NAME=$NAME"
     echo $(eval echo $(jq ".$NAME" $CONFIG))
 }
 

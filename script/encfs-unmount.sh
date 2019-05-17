@@ -1,4 +1,5 @@
 #! /bin/bash
+# fuse filesystem has been killed by systemd
 
 MOUNT_DIR=/tmp/mnt
 
@@ -16,5 +17,3 @@ if [[ -n $LOOPS ]]; then
         exit 1
     fi
 fi
-
-umount $MOUNT_DIR
