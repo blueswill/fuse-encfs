@@ -3,14 +3,11 @@
 CONFIG=
 DEVICE=
 PKEY=
-# environment variable
-# MOUNT_DIR
+MOUNT_DIR=/tmp/mnt
 
-if [[ -z $MOUNT_DIR ]]; then
-    export MOUNT_DIR=/tmp
+if ! [[ -d $MOUNT_DIR ]]; then
+    mkdir -p $MOUNT_DIR
 fi
-
-export MOUNT_DIR=$(mktemp "$MOUNT_DIR/XXXXXX")
 
 function log() {
     logger -st fuse-encfs "$*"
@@ -18,14 +15,15 @@ function log() {
 
 function json_get() {
     local NAME=$1
-    JSON_VALUE=$(eval echo $(jq ".$NAME" $CONFIG))
+    log "NAME=$NAME"
+    echo $(eval echo $(jq ".$NAME" $CONFIG))
 }
 
 while getopts c:d:p: OPTS; do
     case $OPTS in
-        c) config=$OPTARG
+        c) CONFIG=$OPTARG
             ;;
-        d) device=$OPTARG
+        d) DEVICE=/dev/$OPTARG
             ;;
         p) PATH="$OPTARG:$PATH"
             ;;
@@ -34,7 +32,7 @@ while getopts c:d:p: OPTS; do
     esac
 done
 
-if [[ -z $CONFIG  -o -z $DEVICE ]]; then
+if [[ -z $CONFIG || -z $DEVICE ]]; then
     log "missing config or device specified"
     exit 1
 fi
@@ -43,7 +41,7 @@ if encfs-check --config=$CONFIG --device=$DEVICE; then
     encfs-mount --block-device=$DEVICE \
         --pkey=$(json_get pkey) \
         --target=$DEVICE \
-        --owner$(json_get owner) \
+        --owner=$(json_get owner) \
         --primary=$(json_get primary) \
         --private=$(json_get private) \
         --public=$(json_get public) \
