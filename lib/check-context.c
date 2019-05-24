@@ -60,8 +60,7 @@ static int check_header(struct check_context *ctx,
             break;
         ++ptr;
     }
-    return (ptr - header + 1) * sizeof(struct block_header);
-    return (checked ? 0 : -1);
+    return checked ? ((ptr - header + 1) * sizeof(struct block_header)) : -1;
 }
 
 int check_context_do_check(struct check_context *ctx) {
