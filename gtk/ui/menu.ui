@@ -12,11 +12,11 @@
                 <attribute name="action">win.mode</attribute>
                 <attribute name="target">mount</attribute>
             </item>
-            <item>
+            <!--<item>
                 <attribute name="label" translatable="yes">Monitor mode</attribute>
                 <attribute name="action">win.mode</attribute>
                 <attribute name="target">monitor</attribute>
-            </item>
+            </item>-->
         </section>
     </menu>
     <menu id="tpm_menu">

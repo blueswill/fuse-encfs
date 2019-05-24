@@ -110,7 +110,7 @@ free_tpm:
 }
 
 static int check_device(const char *device, struct crypto *crypto) {
-    int fd = open(device, O_RDONLY);
+    int fd = open(device, O_RDONLY | O_EXCL);
     if (fd < 0) {
         g_warning("open %s error: %s", device, g_strerror(errno));
         return -1;

@@ -177,7 +177,7 @@ static gboolean read_ids(gpointer userdata) {
                            -1);
     }
     if (err)
-        g_warning("%s", err->message);
+        show_dialog(fp->grid->win, "%s", err->message);
     g_object_unref(in);
     check_create_satisfied(fp->grid);
     return G_SOURCE_REMOVE;
@@ -271,6 +271,7 @@ static void create_button_clicked_cb(EncfsCreateGrid *self) {
     GVariantDict dict;
     g_variant_dict_init(&dict, NULL);
     g_variant_dict_insert(&dict, "auth.no_user_interaction", "b", FALSE);
+    g_variant_dict_insert(&dict, "flags", "i", O_EXCL);
     gpointer data = get_target();
     if (!data)
         return;
@@ -278,7 +279,7 @@ static void create_button_clicked_cb(EncfsCreateGrid *self) {
     options = g_variant_dict_end(&dict);
     if (!udisks_block_call_open_device_sync(blk, "rw", options, NULL,
                                             &out_index, &out_list, NULL, &err)) {
-        g_warning(err->message);
+        show_dialog(self->win, "%s", err->message);
         return;
     }
     else {
@@ -289,7 +290,7 @@ static void create_button_clicked_cb(EncfsCreateGrid *self) {
         handler = g_unix_fd_list_get(out_list, index, &err);
         g_object_unref(out_list);
         if (handler == -1) {
-            g_warning(err->message);
+            show_dialog(self->win, "%s", err->message);
             return;
         }
         struct create_device_struct *st = g_new(struct create_device_struct, 1);

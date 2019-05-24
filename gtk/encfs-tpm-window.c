@@ -78,11 +78,11 @@ static void _encrypt_file(const gchar *path, EncfsTpmWindow *self) {
     const gchar *owner = gtk_entry_get_text(self->owner_key);
     g_autoptr(GBytes) content = NULL;
     if (g_file_query_file_type(file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) != G_FILE_TYPE_REGULAR) {
-        g_warning("%s is not a regular file", path);
+        _show_dialog(GTK_WINDOW(self), "%s is not a regular file", path);
         return;
     }
     if (!(content = g_file_load_bytes(file, NULL, NULL, &err))) {
-        g_warning(err->message);
+        _show_dialog(GTK_WINDOW(self), "%s", err->message);
         return;
     }
     g_autoptr(GBytes) out = encfs_application_tpm_encrypt_file(app,
@@ -98,7 +98,7 @@ static void _encrypt_file(const gchar *path, EncfsTpmWindow *self) {
         g_file_replace_contents(file, data, size, NULL, TRUE,
                                 G_FILE_CREATE_REPLACE_DESTINATION, NULL, NULL, &err);
         if (err)
-            g_warning(err->message);
+            _show_dialog(GTK_WINDOW(self), "%s", err->message);
     }
 }
 

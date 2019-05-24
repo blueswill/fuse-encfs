@@ -79,7 +79,7 @@ static struct create_context *check_args(int argc, char **argv, char ***id_list)
     }
     if (!tpm_args_init(&tpm_args, owner, primary, private, public, object))
         exit(EXIT_FAILURE);
-    int blkfd = open(blk, O_RDWR);
+    int blkfd = open(blk, O_RDWR | O_EXCL);
     if (blkfd < 0) {
         fprintf(stderr, "open %s error: %s\n", blk, strerror(errno));
         goto free_tpm;

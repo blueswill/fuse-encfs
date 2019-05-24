@@ -172,10 +172,11 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
     GUnixFDList *out_list;
     g_variant_dict_init(&dict, NULL);
     g_variant_dict_insert(&dict, "auth.no_user_interaction", "b", FALSE);
+    g_variant_dict_insert(&dict, "flags", "i", O_EXCL);
     options = g_variant_dict_end(&dict);
     if (!udisks_block_call_open_device_sync(blk, "rw", options, NULL,
                                             &out_index, &out_list, NULL,&err)) {
-        g_warning(err->message);
+        show_error_dialog(win, "%s", err->message);
         g_error_free(err);
         goto end;
     }
@@ -186,7 +187,7 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
         blkfd = g_unix_fd_list_get(out_list, index, &err);
         g_object_unref(out_list);
         if (blkfd == -1) {
-            g_warning(err->message);
+            show_error_dialog(win, "%s", err->message);
             goto end;
         }
     }

@@ -51,7 +51,7 @@ struct mount_context *get_mount_context(struct fuse_args *fuse_args,
     if (!tpm_args_init(&args, user_args->owner, user_args->primary,
                        user_args->private, user_args->public, user_args->object))
         goto end;
-    blkfd = open(user_args->block_device, O_RDWR);
+    blkfd = open(user_args->block_device, O_RDWR | O_EXCL);
     if (blkfd < 0) {
         fprintf(stderr, "open %s error: %s\n",
                 user_args->block_device, strerror(errno));
