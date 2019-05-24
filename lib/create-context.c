@@ -38,7 +38,7 @@ static int check_id_dir(struct create_context *args) {
             }
             else {
                 gchar *str = g_strdup(e->d_name);
-                str[strlen(str) - sizeof(PRIVATE_KEY_SUFFIX)] = '\0';
+                str[strlen(str) - sizeof(PRIVATE_KEY_SUFFIX) + 1] = '\0';
                 g_hash_table_insert(id_hash, str, NULL);
             }
         }
