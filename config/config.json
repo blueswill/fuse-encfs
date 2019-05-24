@@ -2,7 +2,12 @@
     "pkey": "ids/5.priv",
     "owner": "owner",
     "primary": "primary",
-    "private":"key.priv",
+    "private": "key.priv",
     "public": "key.pub",
-    "object": "object"
+    "object": "object",
+
+    "create_flag": true,
+    "master_key": "master.key",
+    "private_key_dir": "/dir",
+    "default_id_file": "/etc/fuse-encfs/default_ids"
 }
