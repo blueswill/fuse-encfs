@@ -4,6 +4,7 @@
 #include<string.h>
 #include<errno.h>
 #include<gmodule.h>
+#include <unistd.h>
 #include"sm9.h"
 #include"sm4.h"
 #include"encfs_helper.h"
@@ -102,29 +103,46 @@ static struct create_context *check_args(int argc, char **argv, char ***id_list)
         g_free(masterfile);
         masterfile = s;
     }
-    int masterfd = open(masterfile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP);
-    if (masterfd < 0) {
-        fprintf(stderr, "open %s error: %s\n", master, strerror(errno));
-        goto free_tpm;
-    }
-    if (generate)
-        pair = generate_master_key_pair(TYPE_ENCRYPT);
-    else
+    int masterfd = open(masterfile, O_RDWR);
+    if (masterfd > 0)
         pair = master_key_pair_read_file(masterfd, _decrypt, &tpm_args);
     if (!pair) {
-        fputs("failed to get master key pair\n", stderr);
-        goto free_tpm;
-    }
-    if (generate && master_key_pair_write_file(pair, masterfd, _encrypt, &tpm_args) < 0) {
-        perror("write master key pair error");
-        goto free_tpm;
+        if (generate) {
+            if (masterfd > 0)
+                close(masterfd);
+            if (unlink(masterfile) < 0 && errno != ENOENT) {
+                fprintf(stderr, "delete %s error: %s\n", masterfile, strerror(errno));
+                goto free_tpm;
+            }
+            if ((masterfd = open(masterfile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP)) < 0) {
+                fprintf(stderr, "create %s error: %s\n", masterfile, strerror(errno));
+                goto free_tpm;
+            }
+            pair = generate_master_key_pair(TYPE_ENCRYPT);
+            if (master_key_pair_write_file(pair, masterfd, _encrypt, &tpm_args) < 0) {
+                perror("write master key pair error");
+                goto free_tpm;
+            }
+        }
+        else if (masterfd < 0) {
+            fprintf(stderr, "open %s error: %s\n", masterfile, strerror(errno));
+            goto free_tpm;
+        }
+        else {
+            fprintf(stderr, "read master key pair error\n");
+            goto free_tpm;
+        }
     }
     struct create_context *args = create_context_new(blkfd, iddirfd, pair, generate);
     if (!args)
         goto free_tpm;
     *id_list = g_strsplit(ids, ",", -1);
+    //now masterfd must be valid
+    close(masterfd);
     return args;
 free_tpm:
+    if (masterfd > 0)
+        close(masterfd);
     tpm_args_reset(&tpm_args);
     exit(EXIT_FAILURE);
 }
