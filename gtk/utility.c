@@ -64,12 +64,12 @@ gchar *_get_password(void) {
     g_autoptr(GtkBuilder) builder = gtk_builder_new_from_resource("/swhc/encfs/generate-rsa.ui");
     GObject *dialog = gtk_builder_get_object(builder, "generate-rsa-dialog");
     gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_hide(GTK_WIDGET(dialog));
     gchar *ret = NULL;
     if (res == GTK_RESPONSE_ACCEPT) {
         GObject *entry = gtk_builder_get_object(builder, "objectpass");
         const gchar *pass = gtk_entry_get_text(GTK_ENTRY(entry));
         ret = g_strdup(pass);
     }
-    gtk_window_close(GTK_WINDOW(dialog));
     return ret;
 }

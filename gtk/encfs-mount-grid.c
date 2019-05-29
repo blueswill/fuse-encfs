@@ -167,6 +167,8 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
     GtkWindow *win = GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(self)));
     struct crypto *crypto = NULL;
     g_autoptr(GError) err = NULL;
+    g_autofree gchar *pass = NULL;
+    g_autofree gchar *target = NULL;
     GVariantDict dict;
     GVariant *out_index, *options;
     GUnixFDList *out_list;
@@ -177,7 +179,7 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
     if (!udisks_block_call_open_device_sync(blk, "rw", options, NULL,
                                             &out_index, &out_list, NULL,&err)) {
         show_error_dialog(win, "%s", err->message);
-        g_error_free(err);
+        g_clear_error(&err);
         goto end;
     }
     else {
@@ -198,7 +200,6 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
         show_error_dialog(win, "Error open file %s: %s", priv_file, g_strerror(errno));
         goto end;
     }
-    g_autofree gchar *pass = NULL;
     if ((pass = _get_password())) {
         if (!(crypto = crypto_read_file(cryptofd, _decrypt, pass))) {
             show_error_dialog(win, "read %s error", priv_file);
@@ -206,7 +207,6 @@ static void mount_button_clicked_cb(EncfsMountGrid *self) {
         }
         const gchar *name = udisks_object_info_get_name(info);
         const gchar *loop_backing_file = loop ? udisks_loop_get_backing_file(loop) : NULL;
-        g_autofree gchar *target = NULL;
         if (loop_backing_file)
             target = unfused_path(loop_backing_file);
         else
